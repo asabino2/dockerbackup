@@ -306,11 +306,35 @@ class BackupService {
     const archiveRelativePath = path.posix.join(safeProfileName, safeContainerName, `${stamp}-${runMode}.tar.gz`);
     const snapshotRelativePath = path.posix.join(safeProfileName, safeContainerName, 'latest.snar');
 
+    // Filter mounts to only those the user selected (if volumeSelections is defined for this container)
+    const selectedPaths = profile.volumeSelections?.[containerId] || profile.volumeSelections?.[inspect.Id];
+    const activeMounts = (backupScope === 'volumes' && selectedPaths?.length)
+      ? mounts.filter((m) => selectedPaths.includes(m.destination))
+      : mounts;
+
+    if (backupScope === 'volumes' && !activeMounts.length) {
+      onProgress({
+        containerName,
+        status: 'skipped',
+        step: 'concluido',
+        message: 'Nenhum volume selecionado para backup.',
+        percent: 100,
+        file: { current: 0, total: 0, currentFile: null, percent: 100 },
+      });
+      return {
+        containerId: inspect.Id,
+        containerName,
+        status: 'skipped',
+        mode: runMode,
+        message: 'Nenhum volume selecionado para backup.',
+      };
+    }
+
     const containerBackup = {
       containerId: inspect.Id,
       containerName,
       backupScope,
-      backupPaths: backupScope === 'container' ? ['/'] : mounts.map((mount) => mount.destination),
+      backupPaths: backupScope === 'container' ? ['/'] : activeMounts.map((mount) => mount.destination),
       mountSignature: mounts,
       archiveRelativePath,
       snapshotRelativePath,
@@ -378,7 +402,7 @@ class BackupService {
 
           const sourcePaths = backupScope === 'container'
             ? ['/']
-            : mounts.map((mount) => mount.destination);
+            : activeMounts.map((mount) => mount.destination);
           const relSourcePaths = sourcePaths.map((item) => toContainerRelPath(item));
 
           if (backupScope === 'volumes') {
@@ -480,7 +504,7 @@ class BackupService {
       }
 
       const binds = [`${backupRoot}:/backuproot`];
-      for (const [index, mount] of mounts.entries()) {
+      for (const [index, mount] of activeMounts.entries()) {
         binds.push(`${getMountBindingSource(mount)}:/payload/m${index}:ro`);
       }
 

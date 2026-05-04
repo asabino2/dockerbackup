@@ -503,6 +503,17 @@ input[type='text'] {
   color: var(--muted);
 }
 
+.volume-blocked {
+  opacity: 0.55;
+  background: rgba(160, 56, 56, 0.05);
+  border-color: rgba(160, 56, 56, 0.18);
+  cursor: not-allowed;
+}
+
+.volume-blocked input {
+  cursor: not-allowed;
+}
+
 .modal-actions {
   display: flex;
   justify-content: space-between;

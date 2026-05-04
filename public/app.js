@@ -2,6 +2,7 @@ const state = {
   containers: [],
   profiles: [],
   activeRuns: new Map(),
+  volumeSelections: {},
 };
 
 const elements = {
@@ -21,6 +22,12 @@ const elements = {
   restoreModalConfirm: document.querySelector('#restoreModalConfirm'),
   restoreModalClose: document.querySelector('#restoreModalClose'),
   restoreModalSelectAll: document.querySelector('#restoreModalSelectAll'),
+  volumePickerModal: document.querySelector('#volumePickerModal'),
+  volumePickerSubtitle: document.querySelector('#volumePickerSubtitle'),
+  volumePickerOptions: document.querySelector('#volumePickerOptions'),
+  volumePickerConfirm: document.querySelector('#volumePickerConfirm'),
+  volumePickerClose: document.querySelector('#volumePickerClose'),
+  volumePickerSelectAll: document.querySelector('#volumePickerSelectAll'),
 };
 
 async function api(path, options = {}) {
@@ -70,25 +77,38 @@ function getSelectedContainerIds() {
   return [...document.querySelectorAll('input[name="containerIds"]:checked')].map((input) => input.value);
 }
 
+const SYSTEM_MOUNT_PREFIXES = ['/dev', '/proc', '/sys', '/run', '/tmp'];
+
+function isMountBlocked(destination) {
+  return SYSTEM_MOUNT_PREFIXES.some(
+    (prefix) => destination === prefix || destination.startsWith(prefix + '/'),
+  );
+}
+
 function renderContainers() {
   elements.containerCount.textContent = String(state.containers.length);
 
-  if (!state.containers.length) {
+  const eligible = state.containers.filter((container) => container.state !== 'created');
+
+  if (!eligible.length) {
     elements.containerOptions.innerHTML = '<p class="empty-state">Nenhum container encontrado.</p>';
     return;
   }
 
   const selected = new Set(getSelectedContainerIds());
-  elements.containerOptions.innerHTML = state.containers.map((container) => `
+  elements.containerOptions.innerHTML = eligible.map((container) => {
+    const hasVolumeSelection = Boolean(state.volumeSelections[container.id]?.length);
+    return `
     <label class="container-option">
       <input type="checkbox" name="containerIds" value="${escapeHtml(container.id)}" ${selected.has(container.id) ? 'checked' : ''} />
       <span>
         <strong>${escapeHtml(container.name)}</strong>
-        <small>${escapeHtml(container.image)} · ${escapeHtml(container.status)}</small>
+        <small>${escapeHtml(container.image)} · ${escapeHtml(container.status)}${hasVolumeSelection ? ` · ${state.volumeSelections[container.id].length} volume(s) selecionado(s)` : ''}</small>
       </span>
       <em class="state ${escapeHtml(container.state)}">${escapeHtml(container.state)}</em>
     </label>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function backupButtons(profile) {
@@ -119,6 +139,141 @@ function getRunMode(profileId) {
 
 function getProfileScopeLabel(scope) {
   return scope === 'container' ? 'container inteiro' : 'somente volumes';
+}
+
+async function askVolumeSelection(containerId, containerName, currentSelections) {
+  let mounts;
+  try {
+    mounts = await api(`/api/containers/${encodeURIComponent(containerId)}/mounts`);
+  } catch (error) {
+    showToast(`Falha ao buscar volumes de ${containerName}: ${error.message}`, true);
+    return null;
+  }
+
+  if (!mounts.length) {
+    showToast(`Container ${containerName} não possui volumes.`, true);
+    return null;
+  }
+
+  const hasEligible = mounts.some((m) => !isMountBlocked(m.destination));
+  if (!hasEligible) {
+    showToast(`Container ${containerName} não possui volumes elegíveis (todos são caminhos de sistema).`, true);
+    return null;
+  }
+
+  elements.volumePickerSubtitle.textContent = `Container: ${containerName}`;
+  elements.volumePickerOptions.innerHTML = mounts.map((mount) => {
+    const blocked = isMountBlocked(mount.destination);
+    const isChecked = currentSelections
+      ? currentSelections.includes(mount.destination)
+      : !blocked;
+    return `
+      <label class="modal-option${blocked ? ' volume-blocked' : ''}">
+        <input
+          type="checkbox"
+          name="volumePaths"
+          value="${escapeHtml(mount.destination)}"
+          ${isChecked && !blocked ? 'checked' : ''}
+          ${blocked ? 'disabled' : ''}
+        />
+        <span>
+          <strong>${escapeHtml(mount.destination)}</strong>
+          <small>${escapeHtml(mount.type)} · ${escapeHtml(mount.source || mount.name || '')}${blocked ? ' · sistema (bloqueado)' : ''}</small>
+        </span>
+      </label>
+    `;
+  }).join('');
+
+  elements.volumePickerModal.classList.remove('hidden');
+  elements.volumePickerModal.setAttribute('aria-hidden', 'false');
+
+  return new Promise((resolve) => {
+    const closeModal = () => {
+      elements.volumePickerModal.classList.add('hidden');
+      elements.volumePickerModal.setAttribute('aria-hidden', 'true');
+      elements.volumePickerOptions.innerHTML = '';
+    };
+
+    const cleanup = () => {
+      elements.volumePickerConfirm.removeEventListener('click', onConfirm);
+      elements.volumePickerClose.removeEventListener('click', onCancel);
+      elements.volumePickerSelectAll.removeEventListener('click', onSelectAll);
+      elements.volumePickerModal.removeEventListener('click', onBackdropClick);
+    };
+
+    const onConfirm = () => {
+      const selected = [...elements.volumePickerOptions.querySelectorAll('input[name="volumePaths"]:checked')]
+        .map((input) => input.value);
+      if (!selected.length) {
+        showToast('Selecione ao menos um volume.', true);
+        return;
+      }
+      cleanup();
+      closeModal();
+      resolve(selected);
+    };
+
+    const onCancel = () => {
+      cleanup();
+      closeModal();
+      resolve(null);
+    };
+
+    const onSelectAll = () => {
+      for (const input of elements.volumePickerOptions.querySelectorAll('input[name="volumePaths"]:not([disabled])')) {
+        input.checked = true;
+      }
+    };
+
+    const onBackdropClick = (event) => {
+      if (event.target.closest('[data-action="close-volume-picker"]')) {
+        onCancel();
+      }
+    };
+
+    elements.volumePickerConfirm.addEventListener('click', onConfirm);
+    elements.volumePickerClose.addEventListener('click', onCancel);
+    elements.volumePickerSelectAll.addEventListener('click', onSelectAll);
+    elements.volumePickerModal.addEventListener('click', onBackdropClick);
+  });
+}
+
+async function handleContainerCheck(event) {
+  const input = event.target.closest('input[name="containerIds"]');
+  if (!input) {
+    return;
+  }
+
+  const scope = document.querySelector('input[name="backupScope"]:checked')?.value;
+  if (scope !== 'volumes') {
+    return;
+  }
+
+  const containerId = input.value;
+  const label = input.closest('label');
+  const containerName = label?.querySelector('strong')?.textContent || containerId.slice(0, 12);
+
+  if (!input.checked) {
+    delete state.volumeSelections[containerId];
+    renderContainers();
+    input.checked = false;
+    return;
+  }
+
+  const currentSelections = state.volumeSelections[containerId] || null;
+  const selected = await askVolumeSelection(containerId, containerName, currentSelections);
+
+  if (selected === null) {
+    input.checked = false;
+    return;
+  }
+
+  state.volumeSelections[containerId] = selected;
+  renderContainers();
+  const updatedInput = document.querySelector(`input[name="containerIds"][value="${CSS.escape(containerId)}"]`);
+  if (updatedInput) {
+    updatedInput.checked = true;
+  }
 }
 
 function askRestoreContainerSelection(profile, backup) {
@@ -382,6 +537,7 @@ function resetForm() {
   elements.profileForm.reset();
   elements.profileId.value = '';
   elements.formModeBadge.textContent = 'criar';
+  state.volumeSelections = {};
   renderContainers();
 }
 
@@ -392,6 +548,7 @@ function fillForm(profile) {
   const backupScope = profile.backupScope === 'container' ? 'container' : 'volumes';
   document.querySelector(`input[name="backupScope"][value="${backupScope}"]`).checked = true;
   elements.formModeBadge.textContent = 'editar';
+  state.volumeSelections = Object.assign({}, profile.volumeSelections || {});
   renderContainers();
   for (const containerId of profile.containerIds) {
     const input = document.querySelector(`input[name="containerIds"][value="${containerId}"]`);
@@ -414,12 +571,25 @@ async function loadProfiles() {
 
 async function saveProfile(event) {
   event.preventDefault();
+  const selectedContainerIds = getSelectedContainerIds();
+  const backupScope = document.querySelector('input[name="backupScope"]:checked').value;
+
+  const volumeSelections = {};
+  if (backupScope === 'volumes') {
+    for (const id of selectedContainerIds) {
+      if (state.volumeSelections[id]?.length) {
+        volumeSelections[id] = state.volumeSelections[id];
+      }
+    }
+  }
+
   const payload = {
     id: elements.profileId.value || undefined,
     name: elements.profileName.value,
     backupDir: elements.backupDir.value,
-    containerIds: getSelectedContainerIds(),
-    backupScope: document.querySelector('input[name="backupScope"]:checked').value,
+    containerIds: selectedContainerIds,
+    backupScope,
+    volumeSelections,
   };
 
   try {
@@ -588,6 +758,7 @@ async function init() {
 }
 
 elements.profileForm.addEventListener('submit', saveProfile);
+elements.containerOptions.addEventListener('change', handleContainerCheck);
 document.querySelector('#refreshContainers').addEventListener('click', init);
 document.querySelector('#reloadProfiles').addEventListener('click', loadProfiles);
 document.querySelector('#clearForm').addEventListener('click', resetForm);

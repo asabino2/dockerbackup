@@ -108,6 +108,21 @@
         </div>
       </div>
     </div>
+    <div id="volumePickerModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-volume-picker"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="volumePickerTitle">
+        <div class="modal-header">
+          <h3 id="volumePickerTitle">Selecionar volumes para backup</h3>
+          <button id="volumePickerClose" class="ghost-button small" type="button" data-action="close-volume-picker">Fechar</button>
+        </div>
+        <p id="volumePickerSubtitle" class="modal-subtitle"></p>
+        <div id="volumePickerOptions" class="modal-options"></div>
+        <div class="modal-actions">
+          <button id="volumePickerSelectAll" class="secondary-button" type="button">Marcar todos</button>
+          <button id="volumePickerConfirm" class="primary-button" type="button">Confirmar seleção</button>
+        </div>
+      </div>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

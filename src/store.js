@@ -54,6 +54,7 @@ class JsonStore {
       containerIds: profileInput.containerIds,
       mode: profileInput.mode,
       backupScope: profileInput.backupScope || 'volumes',
+      volumeSelections: profileInput.volumeSelections || {},
       backupDir: profileInput.backupDir,
       updatedAt: now,
       createdAt: profileInput.createdAt || now,

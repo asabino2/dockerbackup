@@ -40,6 +40,24 @@ async function main() {
     }
   });
 
+  app.get('/api/containers/:containerId/mounts', async (request, response) => {
+    try {
+      const inspect = await dockerService.inspectContainer(request.params.containerId);
+      const mounts = (inspect.Mounts || [])
+        .filter((m) => m.Type === 'bind' || m.Type === 'volume')
+        .map((m) => ({
+          type: m.Type,
+          name: m.Name || null,
+          source: m.Source,
+          destination: m.Destination,
+          rw: m.RW,
+        }));
+      response.json(mounts);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
   app.get('/api/profiles', async (_request, response) => {
     try {
       const profiles = await store.listProfiles();
@@ -71,6 +89,7 @@ async function main() {
         containerIds: payload.containerIds,
         mode: existing?.mode || 'full',
         backupScope: payload.backupScope || existing?.backupScope || 'volumes',
+        volumeSelections: payload.volumeSelections || existing?.volumeSelections || {},
       });
 
       response.status(payload.id ? 200 : 201).json(profile);

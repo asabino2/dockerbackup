@@ -1,0 +1,15 @@
+services:
+  dockerbackup:
+    image: dockerbackup-app
+    build:
+      context: .
+    ports:
+      - "33000:3000"
+    environment:
+      PORT: 3000
+      DATA_DIR: /app/data
+      HELPER_IMAGE: dockerbackup-app
+    volumes:
+      - /mnt/f/ChromeDownloads/dockerbackup/data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+ #   restart: unless-stopped

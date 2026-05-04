@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Docker Backup Profiles</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Docker volume backup</p>
+          <h1>Profiles de backup com parada controlada por container.</h1>
+          <p class="hero-copy">
+            O app usa a Docker API para parar cada container, gerar backup compactado dos mounts e religar apenas quem estava rodando antes.
+          </p>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="metric-label">Containers detectados</span>
+            <strong id="containerCount">0</strong>
+          </div>
+          <div>
+            <span class="metric-label">Profiles salvos</span>
+            <strong id="profileCount">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel form-panel">
+          <div class="panel-header">
+            <h2>Novo profile</h2>
+            <span id="formModeBadge" class="badge">criar</span>
+          </div>
+
+          <form id="profileForm">
+            <input type="hidden" id="profileId" />
+
+            <label>
+              <span>Nome do profile</span>
+              <input id="profileName" name="name" type="text" placeholder="Backup banco principal" required />
+            </label>
+
+            <label>
+              <span>Diretorio de backup no host Docker</span>
+              <input id="backupDir" name="backupDir" type="text" placeholder="/srv/docker-backups" required />
+            </label>
+
+            <fieldset>
+              <legend>Escopo do backup</legend>
+              <div class="radio-grid">
+                <label class="radio-card">
+                  <input type="radio" name="backupScope" value="volumes" checked />
+                  <span>Somente volumes</span>
+                  <small>mantem o comportamento atual de backup de volumes e binds</small>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="backupScope" value="container" />
+                  <span>Container inteiro</span>
+                  <small>gera um unico tar por container a partir de /</small>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="container-picker">
+              <div class="picker-header">
+                <h3>Containers</h3>
+                <button id="refreshContainers" type="button" class="secondary-button">Atualizar lista</button>
+              </div>
+              <div id="containerOptions" class="container-options"></div>
+            </div>
+
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar profile</button>
+              <button class="secondary-button" type="button" id="clearForm">Limpar</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-header">
+            <h2>Profiles salvos</h2>
+            <button id="reloadProfiles" type="button" class="secondary-button">Recarregar</button>
+          </div>
+          <div id="profilesList" class="profiles-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <aside id="toast" class="toast hidden"></aside>
+    <div id="restoreModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-restore-modal"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="restoreModalTitle">
+        <div class="modal-header">
+          <h3 id="restoreModalTitle">Selecionar containers para restore</h3>
+          <button id="restoreModalClose" class="ghost-button small" type="button">Fechar</button>
+        </div>
+        <p id="restoreModalSubtitle" class="modal-subtitle"></p>
+        <div id="restoreContainerOptions" class="modal-options"></div>
+        <div class="modal-actions">
+          <button id="restoreModalSelectAll" class="secondary-button" type="button">Marcar todos</button>
+          <button id="restoreModalConfirm" class="primary-button" type="button">Restaurar selecionados</button>
+        </div>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -456,7 +456,7 @@ class BackupService {
               }
             } else {
               // Full: remove .snar anterior para forçar snapshot limpo.
-              await fsp.rm(absoluteSnapshotPath, { force: true }).catch(() => null);
+              await fs.rm(absoluteSnapshotPath, { force: true }).catch(() => null);
               tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
             }
           }

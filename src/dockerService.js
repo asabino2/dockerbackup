@@ -1,11 +1,45 @@
 const Docker = require('dockerode');
-const { PassThrough } = require('stream');
+const { PassThrough, Readable } = require('stream');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const zlib = require('zlib');
 const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
+
+// Cria um arquivo tar POSIX em memória contendo um único arquivo.
+// Usado para injetar o .snar no container sem depender do tar do sistema.
+function buildSingleFileTar(filename, contentBuffer) {
+  const header = Buffer.alloc(512, 0);
+  Buffer.from(filename.slice(0, 100), 'ascii').copy(header, 0);
+  Buffer.from('0000644\0', 'ascii').copy(header, 100); // mode
+  Buffer.from('0000000\0', 'ascii').copy(header, 108); // uid
+  Buffer.from('0000000\0', 'ascii').copy(header, 116); // gid
+  Buffer.from(`${contentBuffer.length.toString(8).padStart(11, '0')} `, 'ascii').copy(header, 124); // size
+  Buffer.from(`${Math.floor(Date.now() / 1000).toString(8).padStart(11, '0')} `, 'ascii').copy(header, 136); // mtime
+  header[156] = 0x30; // type flag: regular file
+  Buffer.from('ustar\0', 'ascii').copy(header, 257); // magic
+  Buffer.from('00', 'ascii').copy(header, 263); // version
+  // Checksum: calcular com campo de checksum como espaços
+  for (let i = 148; i < 156; i++) header[i] = 0x20;
+  let sum = 0;
+  for (let i = 0; i < 512; i++) sum += header[i];
+  Buffer.from(`${sum.toString(8).padStart(6, '0')}\0 `, 'ascii').copy(header, 148);
+  // Dados com padding para múltiplo de 512
+  const paddedLength = Math.ceil(contentBuffer.length / 512) * 512 || 512;
+  const dataBlock = Buffer.alloc(paddedLength, 0);
+  contentBuffer.copy(dataBlock);
+  return Buffer.concat([header, dataBlock, Buffer.alloc(1024, 0)]);
+}
+
+// Extrai o conteúdo do primeiro arquivo de um tar não comprimido em memória.
+function extractFirstFileFromTar(tarBuffer) {
+  if (!tarBuffer || tarBuffer.length < 512) return null;
+  const sizeField = tarBuffer.slice(124, 136).toString('ascii').replace(/[\0 ]/g, '').trim();
+  const size = parseInt(sizeField, 8);
+  if (!size || !Number.isFinite(size) || size <= 0 || size > tarBuffer.length - 512) return null;
+  return tarBuffer.slice(512, 512 + size);
+}
 
 function detectRunningInContainer() {
   if (fs.existsSync('/.dockerenv')) {
@@ -401,6 +435,40 @@ class DockerService {
         resolve(trimmedOutput);
       });
     });
+  }
+
+  // Injeta um arquivo .snar local no container no caminho absoluto informado.
+  // Usa tar POSIX em memória, sem depender do tar do sistema.
+  async putSnarToContainer(containerId, localSnarPath, containerSnarPath) {
+    const content = await fsp.readFile(localSnarPath);
+    const filename = path.posix.basename(containerSnarPath);
+    const containerDir = path.posix.dirname(containerSnarPath);
+    const tarBuffer = buildSingleFileTar(filename, content);
+    const container = this.docker.getContainer(containerId);
+    await container.putArchive(Readable.from([tarBuffer]), { path: containerDir });
+  }
+
+  // Extrai o arquivo .snar do container e salva no caminho local informado.
+  // Retorna true se conseguiu, false se o arquivo não existe no container.
+  async getSnarFromContainer(containerId, containerSnarPath, localSnarPath) {
+    const container = this.docker.getContainer(containerId);
+    let archiveStream;
+    try {
+      archiveStream = await container.getArchive({ path: containerSnarPath });
+    } catch {
+      return false;
+    }
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      archiveStream.on('data', (chunk) => chunks.push(chunk));
+      archiveStream.on('end', resolve);
+      archiveStream.on('error', reject);
+    });
+    const content = extractFirstFileFromTar(Buffer.concat(chunks));
+    if (!content) return false;
+    await fsp.mkdir(path.dirname(localSnarPath), { recursive: true });
+    await fsp.writeFile(localSnarPath, content);
+    return true;
   }
 
   async runHelper({ binds, cmd, onOutput }) {

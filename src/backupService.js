@@ -415,16 +415,22 @@ class BackupService {
           }
 
           const absoluteArchivePath = path.posix.join(backupRoot, archiveRelativePath);
+          const snarInContainer = containerSnapshotPath(profile.id, containerId, backupScope);
+          const absoluteSnapshotPath = path.posix.join(backupRoot, snapshotRelativePath);
 
-          let newerMtimeFlag = '';
-          if (runMode === 'incremental') {
-            const lastTime = await this.store.getLastContainerBackupTime(profile.id, containerId);
-            if (lastTime) {
-              const unixSec = Math.floor(new Date(lastTime).getTime() / 1000);
-              newerMtimeFlag = `--newer-mtime=@${unixSec}`;
-              pushLog(`Backup incremental: incluindo arquivos modificados apos ${lastTime}.`, 'preparando');
-            } else {
-              pushLog('Aviso: nenhum backup anterior encontrado, gerando full.', 'preparando');
+          // Gerencia o .snar assim como o script shell usa --listed-incremental=$dirbackup/backup.snar:
+          // - Full: remove o .snar anterior do container para forçar snapshot limpo.
+          // - Incremental: injeta o .snar salvo no diretório de backup de volta no container.
+          if (runMode === 'full') {
+            await this.dockerService.runContainerCommand(containerId, `rm -f ${shellQuote(snarInContainer)}`).catch(() => null);
+            pushLog('Backup full: snapshot incremental anterior removido.', 'preparando');
+          } else {
+            try {
+              await fs.access(absoluteSnapshotPath);
+              await this.dockerService.putSnarToContainer(containerId, absoluteSnapshotPath, snarInContainer);
+              pushLog('Backup incremental: snapshot anterior restaurado no container.', 'preparando');
+            } catch {
+              pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo.', 'preparando');
             }
           }
 
@@ -436,11 +442,11 @@ class BackupService {
 
           if (backupScope === 'container') {
             tarParts.push(
-              `tar --warning=no-file-changed --ignore-failed-read ${newerMtimeFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .`
+              `tar --warning=no-file-changed --ignore-failed-read --listed-incremental=${shellQuote(snarInContainer)} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .`
             );
           } else {
             tarParts.push(
-              `tar --warning=no-file-changed --ignore-failed-read ${newerMtimeFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}`
+              `tar --warning=no-file-changed --ignore-failed-read --listed-incremental=${shellQuote(snarInContainer)} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}`
             );
           }
 
@@ -464,6 +470,13 @@ class BackupService {
           });
 
           pushLog(`Arquivo gerado: ${absoluteArchivePath}`, 'finalizando');
+
+          // Persiste o .snar atualizado no diretório de backup (como o script shell faz com $dirbackup/backup.snar)
+          // para que a cadeia incremental sobreviva a recriações do container.
+          const snarSaved = await this.dockerService.getSnarFromContainer(containerId, snarInContainer, absoluteSnapshotPath).catch(() => false);
+          if (snarSaved) {
+            pushLog('Snapshot incremental salvo no diretorio de backup.', 'finalizando');
+          }
         } finally {
           if (tempStarted) {
             pushLog('Encerrando container apos backup.', 'finalizando');

@@ -437,6 +437,17 @@ class DockerService {
     });
   }
 
+  // Retorna true se o container tem GNU tar (suporta --listed-incremental).
+  // Containers Alpine/BusyBox retornam false e devem usar --newer-mtime como fallback.
+  async containerHasGnuTar(containerId) {
+    try {
+      const output = await this.runContainerCommand(containerId, 'tar --version 2>/dev/null | head -1');
+      return /GNU tar/i.test(output);
+    } catch {
+      return false;
+    }
+  }
+
   // Injeta um arquivo .snar local no container no caminho absoluto informado.
   // Usa tar POSIX em memória, sem depender do tar do sistema.
   async putSnarToContainer(containerId, localSnarPath, containerSnarPath) {

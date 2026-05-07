@@ -418,19 +418,41 @@ class BackupService {
           const snarInContainer = containerSnapshotPath(profile.id, containerId, backupScope);
           const absoluteSnapshotPath = path.posix.join(backupRoot, snapshotRelativePath);
 
-          // Gerencia o .snar assim como o script shell usa --listed-incremental=$dirbackup/backup.snar:
-          // - Full: remove o .snar anterior do container para forçar snapshot limpo.
-          // - Incremental: injeta o .snar salvo no diretório de backup de volta no container.
-          if (runMode === 'full') {
-            await this.dockerService.runContainerCommand(containerId, `rm -f ${shellQuote(snarInContainer)}`).catch(() => null);
-            pushLog('Backup full: snapshot incremental anterior removido.', 'preparando');
+          // Detecta se o container tem GNU tar (--listed-incremental é extensão GNU).
+          // Containers Alpine/BusyBox usam o fallback --newer-mtime.
+          const hasGnuTar = await this.dockerService.containerHasGnuTar(containerId);
+          pushLog(`GNU tar detectado no container: ${hasGnuTar ? 'sim' : 'nao (usando --newer-mtime como fallback)'}.`, 'preparando');
+
+          let tarIncrementalFlag = '';
+
+          if (hasGnuTar) {
+            // Gerencia o .snar assim como o script shell usa --listed-incremental=$dirbackup/backup.snar:
+            // - Full: remove o .snar anterior do container para forçar snapshot limpo.
+            // - Incremental: injeta o .snar salvo no diretório de backup de volta no container.
+            if (runMode === 'full') {
+              await this.dockerService.runContainerCommand(containerId, `rm -f ${shellQuote(snarInContainer)}`).catch(() => null);
+              pushLog('Backup full: snapshot incremental anterior removido.', 'preparando');
+            } else {
+              try {
+                await fs.access(absoluteSnapshotPath);
+                await this.dockerService.putSnarToContainer(containerId, absoluteSnapshotPath, snarInContainer);
+                pushLog('Backup incremental: snapshot anterior restaurado no container.', 'preparando');
+              } catch {
+                pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo.', 'preparando');
+              }
+            }
+            tarIncrementalFlag = `--listed-incremental=${shellQuote(snarInContainer)}`;
           } else {
-            try {
-              await fs.access(absoluteSnapshotPath);
-              await this.dockerService.putSnarToContainer(containerId, absoluteSnapshotPath, snarInContainer);
-              pushLog('Backup incremental: snapshot anterior restaurado no container.', 'preparando');
-            } catch {
-              pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo.', 'preparando');
+            // Fallback para containers sem GNU tar: --newer-mtime baseado no timestamp do último backup.
+            if (runMode === 'incremental') {
+              const lastTime = await this.store.getLastContainerBackupTime(profile.id, containerId);
+              if (lastTime) {
+                const unixSec = Math.floor(new Date(lastTime).getTime() / 1000);
+                tarIncrementalFlag = `--newer-mtime=@${unixSec}`;
+                pushLog(`Backup incremental (--newer-mtime): arquivos modificados apos ${lastTime}.`, 'preparando');
+              } else {
+                pushLog('Aviso: sem backup anterior, gerando full.', 'preparando');
+              }
             }
           }
 
@@ -442,11 +464,11 @@ class BackupService {
 
           if (backupScope === 'container') {
             tarParts.push(
-              `tar --warning=no-file-changed --ignore-failed-read --listed-incremental=${shellQuote(snarInContainer)} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .`
+              `tar --warning=no-file-changed --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .`
             );
           } else {
             tarParts.push(
-              `tar --warning=no-file-changed --ignore-failed-read --listed-incremental=${shellQuote(snarInContainer)} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}`
+              `tar --warning=no-file-changed --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}`
             );
           }
 
@@ -473,9 +495,11 @@ class BackupService {
 
           // Persiste o .snar atualizado no diretório de backup (como o script shell faz com $dirbackup/backup.snar)
           // para que a cadeia incremental sobreviva a recriações do container.
-          const snarSaved = await this.dockerService.getSnarFromContainer(containerId, snarInContainer, absoluteSnapshotPath).catch(() => false);
-          if (snarSaved) {
-            pushLog('Snapshot incremental salvo no diretorio de backup.', 'finalizando');
+          if (hasGnuTar) {
+            const snarSaved = await this.dockerService.getSnarFromContainer(containerId, snarInContainer, absoluteSnapshotPath).catch(() => false);
+            if (snarSaved) {
+              pushLog('Snapshot incremental salvo no diretorio de backup.', 'finalizando');
+            }
           }
         } finally {
           if (tempStarted) {

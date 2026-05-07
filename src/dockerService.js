@@ -654,6 +654,15 @@ class DockerService {
 
       await container.start();
       const result = await container.wait();
+
+      // Destruir o attachStream para que os PassThrough streams emitam 'end'
+      // e as outputPromises possam resolver. Sem isso o runHelper trava indefinidamente.
+      if (attachStream && typeof attachStream.destroy === 'function') {
+        attachStream.destroy();
+      }
+      stdoutStream.end();
+      stderrStream.end();
+
       await Promise.all(outputPromises);
 
       output = output.trim();

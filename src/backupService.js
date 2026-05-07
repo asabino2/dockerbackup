@@ -489,13 +489,15 @@ class BackupService {
               maxOkExitCode: 1,
               onOutput: (line, stream) => {
                 const normalizedLine = String(line || '').trim();
-                if (!normalizedLine || stream !== 'stderr' || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) {
+                if (!normalizedLine || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) {
                   return;
                 }
-                if (!normalizedLine.startsWith('tar:')) {
+                // No helper (tar escreve em arquivo): lista de arquivos vai para stdout;
+                // avisos do tar vão para stderr.
+                if (stream === 'stdout' && !normalizedLine.startsWith('tar:')) {
                   fileCurrent += 1;
                   updateFileProgress(normalizedLine);
-                } else {
+                } else if (stream === 'stderr') {
                   pushLog(`Aviso do tar: ${normalizedLine}`, 'gerando-tar');
                 }
               },

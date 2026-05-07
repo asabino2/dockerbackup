@@ -1,4 +1,4 @@
-const Docker = require('dockerode');
+﻿const Docker = require('dockerode');
 const { PassThrough, Readable } = require('stream');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -7,7 +7,7 @@ const zlib = require('zlib');
 const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 
-// Cria um arquivo tar POSIX em memória contendo um único arquivo.
+// Cria um arquivo tar POSIX em memÃ³ria contendo um Ãºnico arquivo.
 // Usado para injetar o .snar no container sem depender do tar do sistema.
 function buildSingleFileTar(filename, contentBuffer) {
   const header = Buffer.alloc(512, 0);
@@ -20,19 +20,19 @@ function buildSingleFileTar(filename, contentBuffer) {
   header[156] = 0x30; // type flag: regular file
   Buffer.from('ustar\0', 'ascii').copy(header, 257); // magic
   Buffer.from('00', 'ascii').copy(header, 263); // version
-  // Checksum: calcular com campo de checksum como espaços
+  // Checksum: calcular com campo de checksum como espaÃ§os
   for (let i = 148; i < 156; i++) header[i] = 0x20;
   let sum = 0;
   for (let i = 0; i < 512; i++) sum += header[i];
   Buffer.from(`${sum.toString(8).padStart(6, '0')}\0 `, 'ascii').copy(header, 148);
-  // Dados com padding para múltiplo de 512
+  // Dados com padding para mÃºltiplo de 512
   const paddedLength = Math.ceil(contentBuffer.length / 512) * 512 || 512;
   const dataBlock = Buffer.alloc(paddedLength, 0);
   contentBuffer.copy(dataBlock);
   return Buffer.concat([header, dataBlock, Buffer.alloc(1024, 0)]);
 }
 
-// Extrai o conteúdo do primeiro arquivo de um tar não comprimido em memória.
+// Extrai o conteÃºdo do primeiro arquivo de um tar nÃ£o comprimido em memÃ³ria.
 function extractFirstFileFromTar(tarBuffer) {
   if (!tarBuffer || tarBuffer.length < 512) return null;
   const sizeField = tarBuffer.slice(124, 136).toString('ascii').replace(/[\0 ]/g, '').trim();
@@ -94,6 +94,46 @@ class DockerService {
     await this.docker.getContainer(containerId).start();
   }
 
+  // Tenta iniciar o container. Se falhar por redes órfãs (network not found),
+  // desconecta as redes inexistentes e tenta iniciar novamente uma vez.
+  async repairAndStartContainer(containerId) {
+    try {
+      await this.startContainer(containerId);
+      return;
+    } catch (firstError) {
+      const msg = String(firstError.message || '');
+      const isNetworkError = /network.*not found|failed to set up container networking/i.test(msg);
+      if (!isNetworkError) {
+        throw firstError;
+      }
+    }
+
+    // Identifica as redes do container e remove as que não existem mais.
+    const inspect = await this.docker.getContainer(containerId).inspect();
+    const networkNames = Object.keys(inspect.NetworkSettings?.Networks || {});
+    let repaired = false;
+
+    for (const networkName of networkNames) {
+      try {
+        await this.docker.getNetwork(networkName).inspect();
+      } catch {
+        // Rede não existe — desconecta o container forçadamente.
+        try {
+          await this.docker.getNetwork(networkName).disconnect({ Container: containerId, Force: true });
+          repaired = true;
+        } catch {
+          // Ignora: a rede já foi removida do endpoint.
+        }
+      }
+    }
+
+    if (!repaired) {
+      // Tenta uma segunda vez mesmo sem reparação detectável.
+    }
+
+    await this.startContainer(containerId);
+  }
+
   async ensureImage(imageName = this.helperImage) {
     try {
       await this.docker.getImage(imageName).inspect();
@@ -126,7 +166,7 @@ class DockerService {
 
     const container = await this.docker.createContainer({
       Image: this.helperImage,
-      Cmd: ['sh', '-lc', `mkdir -p ${shellQuote(`/hostfs${normalized}`)}`],
+      Cmd: ['sh', '-c', `mkdir -p ${shellQuote(`/hostfs${normalized}`)}`],
       Tty: false,
       HostConfig: {
         Binds: ['/:/hostfs'],
@@ -187,7 +227,7 @@ class DockerService {
       AttachStdout: true,
       AttachStderr: true,
       Tty: false,
-      Cmd: ['sh', '-lc', cmd],
+      Cmd: ['sh', '-c', cmd],
     });
 
     const stream = await exec.start({ hijack: true, stdin: false });
@@ -230,7 +270,7 @@ class DockerService {
       AttachStdout: true,
       AttachStderr: true,
       Tty: false,
-      Cmd: ['sh', '-lc', cmd],
+      Cmd: ['sh', '-c', cmd],
     });
 
     const stream = await exec.start({ hijack: true, stdin: false });
@@ -321,7 +361,7 @@ class DockerService {
       AttachStdout: false,
       AttachStderr: true,
       Tty: false,
-      Cmd: ['sh', '-lc', 'tar --listed-incremental=/dev/null -xzf - -C /'],
+      Cmd: ['sh', '-c', 'tar --listed-incremental=/dev/null -xzf - -C /'],
     });
 
     const attachStream = await exec.start({ hijack: true, stdin: true });
@@ -389,7 +429,7 @@ class DockerService {
 
   async runHostCommand({ cmd, onOutput }) {
     await new Promise((resolve, reject) => {
-      const child = spawn('sh', ['-lc', cmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn('sh', ['-c', cmd], { stdio: ['ignore', 'pipe', 'pipe'] });
       let output = '';
 
       const streamOutput = (stream, streamName) => {
@@ -449,7 +489,7 @@ class DockerService {
   }
 
   // Injeta um arquivo .snar local no container no caminho absoluto informado.
-  // Usa tar POSIX em memória, sem depender do tar do sistema.
+  // Usa tar POSIX em memÃ³ria, sem depender do tar do sistema.
   async putSnarToContainer(containerId, localSnarPath, containerSnarPath) {
     const content = await fsp.readFile(localSnarPath);
     const filename = path.posix.basename(containerSnarPath);
@@ -460,7 +500,7 @@ class DockerService {
   }
 
   // Extrai o arquivo .snar do container e salva no caminho local informado.
-  // Retorna true se conseguiu, false se o arquivo não existe no container.
+  // Retorna true se conseguiu, false se o arquivo nÃ£o existe no container.
   async getSnarFromContainer(containerId, containerSnarPath, localSnarPath) {
     const container = this.docker.getContainer(containerId);
     let archiveStream;
@@ -487,7 +527,7 @@ class DockerService {
 
     const container = await this.docker.createContainer({
       Image: this.helperImage,
-      Cmd: ['sh', '-lc', cmd],
+      Cmd: ['sh', '-c', cmd],
       Tty: false,
       HostConfig: {
         Binds: binds,

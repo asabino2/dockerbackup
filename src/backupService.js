@@ -397,7 +397,7 @@ class BackupService {
           }
 
           pushLog('Iniciando container temporariamente para snapshot.', 'preparando');
-          await this.dockerService.startContainer(containerId);
+          await this.dockerService.repairAndStartContainer(containerId);
           tempStarted = true;
 
           const sourcePaths = backupScope === 'container'

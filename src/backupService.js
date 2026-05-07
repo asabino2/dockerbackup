@@ -462,15 +462,19 @@ class BackupService {
             'echo "__DBKP_TAR_BEGIN__" 1>&2',
           ];
 
+          // --ignore-failed-read é extensão GNU tar — não existe no BusyBox tar (Alpine).
+          // Usar condicionalmente para evitar aborto silencioso com 0 bytes no arquivo.
+          const gnuFlags = hasGnuTar ? '--ignore-failed-read' : '';
+
           // GNU tar: exit 0 = ok, exit 1 = avisos (arquivos mudaram, permissão negada), exit 2 = erro fatal.
           // Aceitamos exit 1 como sucesso para não descartar archives válidos com avisos menores.
           if (backupScope === 'container') {
             tarParts.push(
-              `tar --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
+              `tar ${gnuFlags} ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
             );
           } else {
             tarParts.push(
-              `tar --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
+              `tar ${gnuFlags} ${tarIncrementalFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
             );
           }
 

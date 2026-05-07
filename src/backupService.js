@@ -467,7 +467,17 @@ class BackupService {
             pushLog('Container sem GNU tar: usando helper com GNU tar para gerar archive.', 'gerando-tar');
             updateFileProgress();
 
-            const helperBinds = [`${backupRoot}:/backuproot`];
+            // Quando rodando dentro do Docker, backupRoot é um path interno do container da app.
+            // Precisamos do source real (host path ou volume name) para passar ao helper container.
+            const backupRootSource = await this.dockerService.getSelfBindSource(backupRoot);
+            if (!backupRootSource) {
+              throw new Error(
+                `Nao foi possivel determinar o source do diretorio de backup (${backupRoot}) para o helper. ` +
+                'Verifique se o diretorio de backup esta montado via volume ou bind no container da app.'
+              );
+            }
+
+            const helperBinds = [`${backupRootSource}:/backuproot`];
             const helperRelPaths = [];
             for (const [index, mount] of activeMounts.entries()) {
               const src = mount.type === 'volume' ? mount.name : mount.source;

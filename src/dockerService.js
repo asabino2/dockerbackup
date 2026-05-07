@@ -63,10 +63,47 @@ class DockerService {
     this.docker = new Docker({ socketPath });
     this.helperImage = helperImage;
     this.runningInContainer = detectRunningInContainer();
+    this._selfMounts = null; // cache dos mounts do próprio container
   }
 
   isRunningInDocker() {
     return this.runningInContainer;
+  }
+
+  // Retorna os mounts do container da própria aplicação.
+  // Lê /etc/hostname para obter o short ID, busca o container na lista e inspeciona.
+  async _getSelfMounts() {
+    if (this._selfMounts !== null) return this._selfMounts;
+    try {
+      const hostname = fs.readFileSync('/etc/hostname', 'utf8').trim();
+      const all = await this.docker.listContainers({ all: true });
+      const self = all.find((c) => c.Id.startsWith(hostname));
+      if (!self) { this._selfMounts = []; return []; }
+      const info = await this.docker.getContainer(self.Id).inspect();
+      this._selfMounts = info.Mounts || [];
+    } catch {
+      this._selfMounts = [];
+    }
+    return this._selfMounts;
+  }
+
+  // Dado um caminho absoluto dentro do container da app (ex: /app/data/backups),
+  // retorna o source do bind/volume que o cobre (para usar em helper binds).
+  // Se não encontrar mount correspondente, retorna null.
+  async getSelfBindSource(containerPath) {
+    const mounts = await this._getSelfMounts();
+    const normalized = containerPath.replace(/\/+$/, '');
+    // Ordena do mais específico para o mais genérico
+    const sorted = [...mounts].sort(
+      (a, b) => (b.Destination || '').length - (a.Destination || '').length
+    );
+    for (const mount of sorted) {
+      const dest = (mount.Destination || '').replace(/\/+$/, '');
+      if (normalized === dest || normalized.startsWith(dest + '/')) {
+        return mount.Type === 'volume' ? mount.Name : mount.Source;
+      }
+    }
+    return null;
   }
 
   async listContainers() {

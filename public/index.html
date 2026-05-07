@@ -106,9 +106,9 @@
 
             <div class="stat-card">
               <div class="stat-info">
-                <span class="stat-label">Last Backup</span>
-                <strong id="lastBackupTime" class="stat-value stat-value--sm">—</strong>
-                <span class="stat-sub">Latest successful run</span>
+                <span class="stat-label">Successful</span>
+                <strong id="lastBackupTime" class="stat-value">0</strong>
+                <span class="stat-sub">Total com sucesso</span>
               </div>
               <div class="stat-icon stat-icon--green">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -117,9 +117,9 @@
 
             <div class="stat-card">
               <div class="stat-info">
-                <span class="stat-label">Failed (24h)</span>
+                <span class="stat-label">Failed</span>
                 <strong id="failedCount" class="stat-value">0</strong>
-                <span class="stat-sub">Needs attention</span>
+                <span class="stat-sub">Total com falha</span>
               </div>
               <div class="stat-icon stat-icon--red">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -234,6 +234,7 @@
         <div id="view-runs" class="view hidden">
           <div class="page-header">
             <h1 class="page-title">Backup Runs</h1>
+            <button id="refreshRuns" class="btn btn--secondary">Refresh</button>
           </div>
           <div class="card">
             <div class="card-toolbar">
@@ -243,14 +244,14 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
+                    <th>#</th>
                     <th>Profile</th>
+                    <th>Mode</th>
                     <th>Status</th>
+                    <th>Containers</th>
                     <th>Files</th>
                     <th>Size</th>
                     <th>Started</th>
-                    <th>Duration</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="allRunsBody">

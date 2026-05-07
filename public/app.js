@@ -49,6 +49,9 @@ function navigateTo(viewName) {
   if (viewName === 'servers') {
     renderServers();
   }
+  if (viewName === 'runs') {
+    loadAllRuns();
+  }
   if (viewName === 'backups') {
     renderBackupsView();
   }
@@ -99,16 +102,27 @@ async function renderBackupsView() {
       </div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Data</th><th>Mode</th><th>Status</th><th>Containers</th></tr></thead>
+          <thead><tr><th>Data</th><th>Mode</th><th>Status</th><th>Containers</th><th>Actions</th></tr></thead>
           <tbody>
-            ${backups.length ? backups.map((b) => `
+            ${backups.length ? backups.map((b) => {
+              const hasRestorable = (b.containers || []).some((c) => c.status === 'ok');
+              return `
               <tr>
                 <td>${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</td>
                 <td>${escapeHtml(b.mode || '—')}</td>
                 <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
                 <td>${escapeHtml((b.containers || []).map((c) => c.containerName).join(', '))}</td>
+                <td>
+                  <button
+                    class="btn btn--secondary btn--sm"
+                    data-action="restore"
+                    data-profile-id="${escapeHtml(profile.id)}"
+                    data-backup-id="${escapeHtml(b.id)}"
+                    ${hasRestorable ? '' : 'disabled title="Nenhum container restaurável"'}
+                  >Restore</button>
+                </td>
               </tr>
-            `).join('') : '<tr><td colspan="4" class="empty-row">Nenhum backup realizado.</td></tr>'}
+            `}).join('') : '<tr><td colspan="5" class="empty-row">Nenhum backup realizado.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -127,16 +141,11 @@ async function updateDashboard() {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const lastBackupEl = document.querySelector('#lastBackupTime');
   if (lastBackupEl) {
-    lastBackupEl.textContent = successful.length
-      ? new Date(successful[0].createdAt).toLocaleString('pt-BR')
-      : '—';
+    lastBackupEl.textContent = String(successful.length);
   }
 
-  // Failed in last 24h
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  const failed = allBackups.filter(
-    (b) => b.status === 'error' && new Date(b.createdAt).getTime() >= cutoff,
-  );
+  // Failed total
+  const failed = allBackups.filter((b) => b.status === 'error');
   const failedEl = document.querySelector('#failedCount');
   if (failedEl) failedEl.textContent = String(failed.length);
 
@@ -189,6 +198,54 @@ function formatBytes(bytes) {
   if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
   if (bytes >= 1e3) return (bytes / 1e3).toFixed(1) + ' KB';
   return bytes + ' B';
+}
+
+async function loadAllRuns() {
+  const tbody = document.querySelector('#allRunsBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Carregando...</td></tr>';
+
+  if (!state.profiles.length) {
+    await loadProfiles();
+  }
+
+  if (!state.profiles.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Nenhum profile encontrado.</td></tr>';
+    return;
+  }
+
+  const allBackups = (await Promise.all(
+    state.profiles.map((p) => api(`/api/profiles/${p.id}/backups`)),
+  )).flat();
+
+  const sorted = [...allBackups].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Nenhum run encontrado.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sorted.map((b, index) => {
+    const profile = state.profiles.find((p) => p.id === b.profileId);
+    const profileName = profile ? profile.name : (b.profileName || b.profileId || '—');
+    const containers = (b.containers || []).map((c) => escapeHtml(c.containerName || c.containerId?.slice(0, 12) || '?')).join(', ');
+    const fileCount = (b.containers || []).reduce((sum, c) => sum + (c.fileCount || 0), 0);
+    const size = (b.containers || []).reduce((sum, c) => sum + (c.archiveSize || 0), 0);
+    const sizeStr = size > 0 ? formatBytes(size) : '—';
+    const statusLabel = b.status === 'ok' ? 'Completed' : b.status === 'partial' ? 'Partial' : 'Error';
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(profileName)}</td>
+        <td>${escapeHtml(b.mode || '—')}</td>
+        <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(statusLabel)}</span></td>
+        <td>${containers || '—'}</td>
+        <td>${fileCount || '—'}</td>
+        <td>${sizeStr}</td>
+        <td>${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 async function api(path, options = {}) {
@@ -925,5 +982,7 @@ document.querySelector('#refreshContainers').addEventListener('click', init);
 document.querySelector('#reloadProfiles').addEventListener('click', loadProfiles);
 document.querySelector('#clearForm').addEventListener('click', resetForm);
 elements.profilesList.addEventListener('click', handleProfileAction);
+document.querySelector('#backupsViewList').addEventListener('click', handleProfileAction);
+document.querySelector('#refreshRuns')?.addEventListener('click', () => loadAllRuns());
 
 init();

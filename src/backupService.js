@@ -445,20 +445,11 @@ class BackupService {
           } else {
             // Fallback para containers sem GNU tar: usa helper container com GNU tar
             // montando os volumes diretamente — produz .snar como qualquer outro container.
-            if (runMode === 'incremental') {
-              try {
-                await fs.access(absoluteSnapshotPath);
-                tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
-                pushLog('Backup incremental via helper: snapshot anterior encontrado.', 'preparando');
-              } catch {
-                pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo via helper.', 'preparando');
-                tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
-              }
-            } else {
-              // Full: remove .snar anterior para forçar snapshot limpo.
+            if (runMode === 'full') {
+              // Full: remove .snar anterior para forçar snapshot limpo no helper.
               await fs.rm(absoluteSnapshotPath, { force: true }).catch(() => null);
-              tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
             }
+            // O .snar é gerenciado pelo helper usando helperSnarPath calculado abaixo.
           }
 
           // Containers BusyBox sem GNU tar: roda o tar num helper container que TEM GNU tar,
@@ -469,28 +460,31 @@ class BackupService {
 
             // Quando rodando dentro do Docker, backupRoot é um path interno do container da app.
             // Precisamos do source real (host path ou volume name) para passar ao helper container.
-            const backupRootSource = await this.dockerService.getSelfBindSource(backupRoot);
-            if (!backupRootSource) {
+            const selfBind = await this.dockerService.getSelfBindSource(backupRoot);
+            if (!selfBind) {
               throw new Error(
                 `Nao foi possivel determinar o source do diretorio de backup (${backupRoot}) para o helper. ` +
                 'Verifique se o diretorio de backup esta montado via volume ou bind no container da app.'
               );
             }
 
-            const helperBinds = [`${backupRootSource}:/backuproot`];
+            // suffix é o subpath dentro do volume (ex: /backups quando mount=/app/data e backupRoot=/app/data/backups)
+            const helperBackupRoot = `/backuproot_base${selfBind.suffix}`;
+            const helperBinds = [`${selfBind.source}:/backuproot_base`];
             const helperRelPaths = [];
             for (const [index, mount] of activeMounts.entries()) {
               const src = mount.type === 'volume' ? mount.name : mount.source;
               helperBinds.push(`${src}:/payload/m${index}:ro`);
               helperRelPaths.push(`payload/m${index}`);
             }
-            const helperArchivePath = `/backuproot/${archiveRelativePath}`;
-            const helperSnarDir = path.posix.dirname(`/backuproot/${snapshotRelativePath}`);
+            const helperArchivePath = `${helperBackupRoot}/${archiveRelativePath}`;
+            const helperSnarPath = `${helperBackupRoot}/${snapshotRelativePath}`;
+            const helperSnarDir = path.posix.dirname(helperSnarPath);
             const helperCmd = [
               'set -u',
               `mkdir -p ${shellQuote(path.posix.dirname(helperArchivePath))} ${shellQuote(helperSnarDir)}`,
               `echo "__DBKP_TAR_BEGIN__" 1>&2`,
-              `tar --ignore-failed-read ${tarIncrementalFlag} -czvf ${shellQuote(helperArchivePath)} -C / ${helperRelPaths.map((p) => shellQuote(p)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`,
+              `tar --ignore-failed-read --listed-incremental=${shellQuote(helperSnarPath)} -czvf ${shellQuote(helperArchivePath)} -C / ${helperRelPaths.map((p) => shellQuote(p)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`,
             ].join('; ');
 
             await this.dockerService.runHelper({

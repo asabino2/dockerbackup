@@ -88,8 +88,9 @@ class DockerService {
   }
 
   // Dado um caminho absoluto dentro do container da app (ex: /app/data/backups),
-  // retorna o source do bind/volume que o cobre (para usar em helper binds).
-  // Se não encontrar mount correspondente, retorna null.
+  // retorna { source, suffix } onde source é o bind/volume que cobre o caminho
+  // e suffix é o subpath dentro desse mount (ex: source='data_vol', suffix='/backups').
+  // Retorna null se não encontrar mount correspondente.
   async getSelfBindSource(containerPath) {
     const mounts = await this._getSelfMounts();
     const normalized = containerPath.replace(/\/+$/, '');
@@ -100,7 +101,9 @@ class DockerService {
     for (const mount of sorted) {
       const dest = (mount.Destination || '').replace(/\/+$/, '');
       if (normalized === dest || normalized.startsWith(dest + '/')) {
-        return mount.Type === 'volume' ? mount.Name : mount.Source;
+        const source = mount.Type === 'volume' ? mount.Name : mount.Source;
+        const suffix = normalized.slice(dest.length) || '';
+        return { source, suffix };
       }
     }
     return null;

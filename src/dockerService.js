@@ -597,7 +597,8 @@ class DockerService {
     }
   }
 
-  async runHelper({ binds, cmd, onOutput }) {    await this.ensureImage();
+  async runHelper({ binds, cmd, onOutput, maxOkExitCode = 0 }) {
+    await this.ensureImage();
 
     const container = await this.docker.createContainer({
       Image: this.helperImage,

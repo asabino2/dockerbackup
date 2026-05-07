@@ -3,117 +3,311 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Docker Backup Profiles</title>
+    <title>DockerBackup</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">Docker volume backup</p>
-          <h1>Profiles de backup com parada controlada por container.</h1>
-          <p class="hero-copy">
-            O app usa a Docker API para parar cada container, gerar backup compactado dos mounts e religar apenas quem estava rodando antes.
-          </p>
+    <div class="app-shell">
+
+      <!-- ===== SIDEBAR ===== -->
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+          <span>DockerBackup</span>
         </div>
-        <div class="hero-card">
-          <div>
-            <span class="metric-label">Containers detectados</span>
-            <strong id="containerCount">0</strong>
+
+        <ul class="nav-list">
+          <li>
+            <button class="nav-item active" data-view="dashboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <span>Dashboard</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="servers">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="17" width="20" height="4" rx="1"/></svg>
+              <span>Servers</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="profiles">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+              <span>Backup Profiles</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="runs">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Backup Runs</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="backups">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+              <span>Backups</span>
+            </button>
+          </li>
+        </ul>
+
+        <div class="nav-section-label">CONFIGURATION</div>
+
+        <ul class="nav-list">
+          <li>
+            <button class="nav-item" data-view="storage">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <span>Storage Locations</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="naming">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              <span>Naming Rules</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- ===== MAIN CONTENT ===== -->
+      <div class="main-content">
+
+        <!-- VIEW: Dashboard -->
+        <div id="view-dashboard" class="view">
+          <div class="page-header">
+            <h1 class="page-title">Dashboard</h1>
           </div>
-          <div>
-            <span class="metric-label">Profiles salvos</span>
-            <strong id="profileCount">0</strong>
-          </div>
-        </div>
-      </header>
 
-      <main class="layout">
-        <section class="panel form-panel">
-          <div class="panel-header">
-            <h2>Novo profile</h2>
-            <span id="formModeBadge" class="badge">criar</span>
-          </div>
-
-          <form id="profileForm">
-            <input type="hidden" id="profileId" />
-
-            <label>
-              <span>Nome do profile</span>
-              <input id="profileName" name="name" type="text" placeholder="Backup banco principal" required />
-            </label>
-
-            <label>
-              <span>Diretorio de backup no host Docker</span>
-              <input id="backupDir" name="backupDir" type="text" placeholder="/srv/docker-backups" required />
-            </label>
-
-            <fieldset>
-              <legend>Escopo do backup</legend>
-              <div class="radio-grid">
-                <label class="radio-card">
-                  <input type="radio" name="backupScope" value="volumes" checked />
-                  <span>Somente volumes</span>
-                  <small>mantem o comportamento atual de backup de volumes e binds</small>
-                </label>
-                <label class="radio-card">
-                  <input type="radio" name="backupScope" value="container" />
-                  <span>Container inteiro</span>
-                  <small>gera um unico tar por container a partir de /</small>
-                </label>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-info">
+                <span class="stat-label">Total Servers</span>
+                <strong id="containerCount" class="stat-value">0</strong>
+                <span class="stat-sub">Active connections</span>
               </div>
-            </fieldset>
-
-            <div class="container-picker">
-              <div class="picker-header">
-                <h3>Containers</h3>
-                <button id="refreshContainers" type="button" class="secondary-button">Atualizar lista</button>
+              <div class="stat-icon stat-icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               </div>
-              <div id="containerOptions" class="container-options"></div>
             </div>
 
-            <div class="form-actions">
-              <button class="primary-button" type="submit">Salvar profile</button>
-              <button class="secondary-button" type="button" id="clearForm">Limpar</button>
+            <div class="stat-card">
+              <div class="stat-info">
+                <span class="stat-label">Backup Profiles</span>
+                <strong id="profileCount" class="stat-value">0</strong>
+                <span class="stat-sub">Configured profiles</span>
+              </div>
+              <div class="stat-icon stat-icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+              </div>
             </div>
-          </form>
-        </section>
 
-        <section class="panel list-panel">
-          <div class="panel-header">
-            <h2>Profiles salvos</h2>
-            <button id="reloadProfiles" type="button" class="secondary-button">Recarregar</button>
+            <div class="stat-card">
+              <div class="stat-info">
+                <span class="stat-label">Last Backup</span>
+                <strong id="lastBackupTime" class="stat-value stat-value--sm">—</strong>
+                <span class="stat-sub">Latest successful run</span>
+              </div>
+              <div class="stat-icon stat-icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <span class="stat-label">Failed (24h)</span>
+                <strong id="failedCount" class="stat-value">0</strong>
+                <span class="stat-sub">Needs attention</span>
+              </div>
+              <div class="stat-icon stat-icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+            </div>
           </div>
-          <div id="profilesList" class="profiles-list"></div>
-        </section>
-      </main>
-    </div>
+
+          <div class="card">
+            <div class="card-toolbar">
+              <h2 class="card-title">Recent Backup Runs</h2>
+              <button id="createProfileBtn" class="btn btn--primary">+ Create Profile</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Profile</th>
+                    <th>Status</th>
+                    <th>Files</th>
+                    <th>Size</th>
+                    <th>Started</th>
+                    <th>Duration</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="recentRunsBody">
+                  <tr><td colspan="8" class="empty-row">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW: Servers -->
+        <div id="view-servers" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title">Servers</h1>
+            <button id="refreshServers" class="btn btn--secondary">Refresh</button>
+          </div>
+          <div id="serversList" class="servers-grid"></div>
+        </div>
+
+        <!-- VIEW: Backup Profiles -->
+        <div id="view-profiles" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title">Backup Profiles</h1>
+            <button id="reloadProfiles" class="btn btn--secondary">Reload</button>
+          </div>
+
+          <div class="profiles-layout">
+            <div class="card">
+              <div class="card-toolbar">
+                <h2 class="card-title">New Profile</h2>
+                <span id="formModeBadge" class="badge badge--accent">criar</span>
+              </div>
+
+              <form id="profileForm" class="profile-form">
+                <input type="hidden" id="profileId" />
+
+                <div class="form-field">
+                  <label for="profileName">Nome do profile</label>
+                  <input id="profileName" name="name" type="text" placeholder="Backup banco principal" required />
+                </div>
+
+                <div class="form-field">
+                  <label for="backupDir">Diretório de backup no host Docker</label>
+                  <input id="backupDir" name="backupDir" type="text" placeholder="/srv/docker-backups" required />
+                </div>
+
+                <fieldset class="form-fieldset">
+                  <legend>Escopo do backup</legend>
+                  <div class="radio-grid">
+                    <label class="radio-card">
+                      <input type="radio" name="backupScope" value="volumes" checked />
+                      <span>Somente volumes</span>
+                      <small>mantém o comportamento atual de backup de volumes e binds</small>
+                    </label>
+                    <label class="radio-card">
+                      <input type="radio" name="backupScope" value="container" />
+                      <span>Container inteiro</span>
+                      <small>gera um único tar por container a partir de /</small>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <div class="container-picker">
+                  <div class="picker-header">
+                    <span class="picker-label">Containers</span>
+                    <button id="refreshContainers" type="button" class="btn btn--ghost btn--sm">Atualizar lista</button>
+                  </div>
+                  <div id="containerOptions" class="container-options"></div>
+                </div>
+
+                <div class="form-actions">
+                  <button class="btn btn--primary" type="submit">Salvar profile</button>
+                  <button class="btn btn--secondary" type="button" id="clearForm">Limpar</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="card-toolbar">
+                <h2 class="card-title">Profiles Salvos</h2>
+              </div>
+              <div id="profilesList" class="profiles-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW: Backup Runs -->
+        <div id="view-runs" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title">Backup Runs</h1>
+          </div>
+          <div class="card">
+            <div class="card-toolbar">
+              <h2 class="card-title">All Runs</h2>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Profile</th>
+                    <th>Status</th>
+                    <th>Files</th>
+                    <th>Size</th>
+                    <th>Started</th>
+                    <th>Duration</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="allRunsBody">
+                  <tr><td colspan="8" class="empty-row">Nenhum run encontrado.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW: Backups -->
+        <div id="view-backups" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title">Backups</h1>
+          </div>
+          <div id="backupsViewList"></div>
+        </div>
+
+        <!-- VIEW: Storage -->
+        <div id="view-storage" class="view hidden">
+          <div class="page-header"><h1 class="page-title">Storage Locations</h1></div>
+          <div class="card"><p class="empty-state">Sem locais de armazenamento configurados.</p></div>
+        </div>
+
+        <!-- VIEW: Naming -->
+        <div id="view-naming" class="view hidden">
+          <div class="page-header"><h1 class="page-title">Naming Rules</h1></div>
+          <div class="card"><p class="empty-state">Sem regras de nomenclatura configuradas.</p></div>
+        </div>
+
+      </div><!-- /.main-content -->
+    </div><!-- /.app-shell -->
 
     <aside id="toast" class="toast hidden"></aside>
+
     <div id="restoreModal" class="modal hidden" aria-hidden="true">
       <div class="modal-backdrop" data-action="close-restore-modal"></div>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="restoreModalTitle">
         <div class="modal-header">
           <h3 id="restoreModalTitle">Selecionar containers para restore</h3>
-          <button id="restoreModalClose" class="ghost-button small" type="button">Fechar</button>
+          <button id="restoreModalClose" class="btn btn--ghost btn--sm" type="button">Fechar</button>
         </div>
         <p id="restoreModalSubtitle" class="modal-subtitle"></p>
         <div id="restoreContainerOptions" class="modal-options"></div>
         <div class="modal-actions">
-          <button id="restoreModalSelectAll" class="secondary-button" type="button">Marcar todos</button>
-          <button id="restoreModalConfirm" class="primary-button" type="button">Restaurar selecionados</button>
+          <button id="restoreModalSelectAll" class="btn btn--secondary" type="button">Marcar todos</button>
+          <button id="restoreModalConfirm" class="btn btn--primary" type="button">Restaurar selecionados</button>
         </div>
       </div>
     </div>
+
     <div id="volumePickerModal" class="modal hidden" aria-hidden="true">
       <div class="modal-backdrop" data-action="close-volume-picker"></div>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="volumePickerTitle">
         <div class="modal-header">
           <h3 id="volumePickerTitle">Selecionar volumes para backup</h3>
-          <button id="volumePickerClose" class="ghost-button small" type="button" data-action="close-volume-picker">Fechar</button>
+          <button id="volumePickerClose" class="btn btn--ghost btn--sm" type="button" data-action="close-volume-picker">Fechar</button>
         </div>
         <p id="volumePickerSubtitle" class="modal-subtitle"></p>
         <div id="volumePickerOptions" class="modal-options"></div>

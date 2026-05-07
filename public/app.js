@@ -30,6 +30,167 @@ const elements = {
   volumePickerSelectAll: document.querySelector('#volumePickerSelectAll'),
 };
 
+// ─── View navigation ──────────────────────────────────────
+function navigateTo(viewName) {
+  for (const view of document.querySelectorAll('.view')) {
+    view.classList.add('hidden');
+  }
+  const target = document.querySelector(`#view-${viewName}`);
+  if (target) {
+    target.classList.remove('hidden');
+  }
+  for (const item of document.querySelectorAll('.nav-item')) {
+    item.classList.toggle('active', item.dataset.view === viewName);
+  }
+  if (viewName === 'profiles') {
+    loadProfiles();
+    loadContainers();
+  }
+  if (viewName === 'servers') {
+    renderServers();
+  }
+  if (viewName === 'backups') {
+    renderBackupsView();
+  }
+}
+
+document.querySelector('.sidebar').addEventListener('click', (e) => {
+  const btn = e.target.closest('.nav-item[data-view]');
+  if (btn) {
+    navigateTo(btn.dataset.view);
+  }
+});
+
+document.querySelector('#createProfileBtn')?.addEventListener('click', () => navigateTo('profiles'));
+document.querySelector('#refreshServers')?.addEventListener('click', () => renderServers());
+
+function renderServers() {
+  const list = document.querySelector('#serversList');
+  if (!list) return;
+  if (!state.containers.length) {
+    list.innerHTML = '<p class="empty-state">Nenhum servidor encontrado.</p>';
+    return;
+  }
+  list.innerHTML = state.containers.map((c) => `
+    <div class="server-card">
+      <h3>${escapeHtml(c.name)}</h3>
+      <small>${escapeHtml(c.image)}</small>
+      <small>${escapeHtml(c.status)} · <span class="state ${escapeHtml(c.state)}">${escapeHtml(c.state)}</span></small>
+    </div>
+  `).join('');
+}
+
+async function renderBackupsView() {
+  const host = document.querySelector('#backupsViewList');
+  if (!host) return;
+  if (!state.profiles.length) {
+    host.innerHTML = '<div class="card"><p class="empty-state">Nenhum profile encontrado.</p></div>';
+    return;
+  }
+  const rows = await Promise.all(state.profiles.map(async (p) => {
+    const backups = await api(`/api/profiles/${p.id}/backups`);
+    return { profile: p, backups };
+  }));
+  host.innerHTML = rows.map(({ profile, backups }) => `
+    <div class="card">
+      <div class="card-toolbar">
+        <h2 class="card-title">${escapeHtml(profile.name)}</h2>
+        <span class="badge">${escapeHtml(String(backups.length))} backup(s)</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Data</th><th>Mode</th><th>Status</th><th>Containers</th></tr></thead>
+          <tbody>
+            ${backups.length ? backups.map((b) => `
+              <tr>
+                <td>${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</td>
+                <td>${escapeHtml(b.mode || '—')}</td>
+                <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
+                <td>${escapeHtml((b.containers || []).map((c) => c.containerName).join(', '))}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="4" class="empty-row">Nenhum backup realizado.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function updateDashboard() {
+  const allBackups = (await Promise.all(
+    state.profiles.map((p) => api(`/api/profiles/${p.id}/backups`))
+  )).flat();
+
+  // Last successful
+  const successful = allBackups
+    .filter((b) => b.status === 'ok' || b.status === 'partial')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const lastBackupEl = document.querySelector('#lastBackupTime');
+  if (lastBackupEl) {
+    lastBackupEl.textContent = successful.length
+      ? new Date(successful[0].createdAt).toLocaleString('pt-BR')
+      : '—';
+  }
+
+  // Failed in last 24h
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const failed = allBackups.filter(
+    (b) => b.status === 'error' && new Date(b.createdAt).getTime() >= cutoff,
+  );
+  const failedEl = document.querySelector('#failedCount');
+  if (failedEl) failedEl.textContent = String(failed.length);
+
+  // Recent runs table
+  const recent = [...allBackups]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 20);
+
+  const tbody = document.querySelector('#recentRunsBody');
+  if (!tbody) return;
+
+  if (!recent.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Nenhum run encontrado.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = recent.map((b, index) => {
+    const profile = state.profiles.find((p) => p.id === b.profileId);
+    const profileName = profile ? profile.name : (b.profileName || b.profileId || '—');
+    const started = new Date(b.createdAt).toLocaleString('pt-BR');
+    const duration = '—';
+    const fileCount = (b.containers || []).reduce((sum, c) => sum + (c.fileCount || 0), 0);
+    const size = (b.containers || []).reduce((sum, c) => sum + (c.archiveSize || 0), 0);
+    const sizeStr = size > 0 ? formatBytes(size) : '—';
+    return `
+      <tr>
+        <td>#${index + 1}</td>
+        <td><a href="#" class="profile-link" data-profile-id="${escapeHtml(b.profileId)}">${escapeHtml(profileName)}</a></td>
+        <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(b.status === 'ok' ? 'Completed' : b.status)}</span></td>
+        <td>${fileCount || '—'}</td>
+        <td>${sizeStr}</td>
+        <td>${started}</td>
+        <td>${duration}</td>
+        <td><button class="btn btn--ghost btn--sm" disabled>🗑</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  document.querySelector('#recentRunsBody')?.addEventListener('click', (e) => {
+    const link = e.target.closest('.profile-link');
+    if (link) {
+      e.preventDefault();
+      navigateTo('profiles');
+    }
+  }, { once: true });
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+  if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
+  if (bytes >= 1e3) return (bytes / 1e3).toFixed(1) + ' KB';
+  return bytes + ' B';
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: {
@@ -752,6 +913,7 @@ async function handleProfileAction(event) {
 async function init() {
   try {
     await Promise.all([loadContainers(), loadProfiles()]);
+    await updateDashboard();
   } catch (error) {
     showToast(error.message, true);
   }

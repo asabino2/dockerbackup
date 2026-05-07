@@ -265,6 +265,7 @@ class DockerService {
 
   async streamContainerCommandToFile(containerId, cmd, targetFilePath, options = {}) {
     const onOutput = typeof options.onOutput === 'function' ? options.onOutput : () => {};
+    const maxOkExitCode = typeof options.maxOkExitCode === 'number' ? options.maxOkExitCode : 0;
     const container = this.docker.getContainer(containerId);
     const exec = await container.exec({
       AttachStdout: true,
@@ -323,7 +324,7 @@ class DockerService {
       }),
     ]);
 
-    if (info.ExitCode !== 0) {
+    if (info.ExitCode > maxOkExitCode) {
       throw new Error(`Comando de stream em container terminou com codigo ${info.ExitCode}`);
     }
   }

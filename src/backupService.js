@@ -457,25 +457,28 @@ class BackupService {
           }
 
           const tarParts = [
-            'set -eu',
+            'set -u',
             'umask 077',
             'echo "__DBKP_TAR_BEGIN__" 1>&2',
           ];
 
+          // GNU tar: exit 0 = ok, exit 1 = avisos (arquivos mudaram, permissão negada), exit 2 = erro fatal.
+          // Aceitamos exit 1 como sucesso para não descartar archives válidos com avisos menores.
           if (backupScope === 'container') {
             tarParts.push(
-              `tar --warning=no-file-changed --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .`
+              `tar --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
             );
           } else {
             tarParts.push(
-              `tar --warning=no-file-changed --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}`
+              `tar --ignore-failed-read ${tarIncrementalFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
             );
           }
 
           updateFileProgress();
           pushLog('Iniciando compactacao tar do container.', 'gerando-tar');
 
-          await this.dockerService.streamContainerCommandToFile(containerId, tarParts.join(' && '), absoluteArchivePath, {
+          await this.dockerService.streamContainerCommandToFile(containerId, tarParts.join('; '), absoluteArchivePath, {
+            maxOkExitCode: 1,
             onOutput: (line, stream) => {
               const normalizedLine = String(line || '').trim();
               if (!normalizedLine || stream !== 'stderr' || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) {

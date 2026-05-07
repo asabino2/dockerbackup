@@ -443,17 +443,76 @@ class BackupService {
             }
             tarIncrementalFlag = `--listed-incremental=${shellQuote(snarInContainer)}`;
           } else {
-            // Fallback para containers sem GNU tar: --newer-mtime baseado no timestamp do último backup.
+            // Fallback para containers sem GNU tar: usa helper container com GNU tar
+            // montando os volumes diretamente — produz .snar como qualquer outro container.
             if (runMode === 'incremental') {
-              const lastTime = await this.store.getLastContainerBackupTime(profile.id, containerId);
-              if (lastTime) {
-                const unixSec = Math.floor(new Date(lastTime).getTime() / 1000);
-                tarIncrementalFlag = `--newer-mtime=@${unixSec}`;
-                pushLog(`Backup incremental (--newer-mtime): arquivos modificados apos ${lastTime}.`, 'preparando');
-              } else {
-                pushLog('Aviso: sem backup anterior, gerando full.', 'preparando');
+              try {
+                await fs.access(absoluteSnapshotPath);
+                tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
+                pushLog('Backup incremental via helper: snapshot anterior encontrado.', 'preparando');
+              } catch {
+                pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo via helper.', 'preparando');
+                tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
               }
+            } else {
+              // Full: remove .snar anterior para forçar snapshot limpo.
+              await fsp.rm(absoluteSnapshotPath, { force: true }).catch(() => null);
+              tarIncrementalFlag = `--listed-incremental=${shellQuote('/backuproot/' + snapshotRelativePath)}`;
             }
+          }
+
+          // Containers BusyBox sem GNU tar: roda o tar num helper container que TEM GNU tar,
+          // montando os volumes do container alvo diretamente.
+          if (!hasGnuTar && backupScope === 'volumes' && activeMounts.length) {
+            pushLog('Container sem GNU tar: usando helper com GNU tar para gerar archive.', 'gerando-tar');
+            updateFileProgress();
+
+            const helperBinds = [`${backupRoot}:/backuproot`];
+            const helperRelPaths = [];
+            for (const [index, mount] of activeMounts.entries()) {
+              const src = mount.type === 'volume' ? mount.name : mount.source;
+              helperBinds.push(`${src}:/payload/m${index}:ro`);
+              helperRelPaths.push(`payload/m${index}`);
+            }
+            const helperArchivePath = `/backuproot/${archiveRelativePath}`;
+            const helperSnarDir = path.posix.dirname(`/backuproot/${snapshotRelativePath}`);
+            const helperCmd = [
+              'set -u',
+              `mkdir -p ${shellQuote(path.posix.dirname(helperArchivePath))} ${shellQuote(helperSnarDir)}`,
+              `echo "__DBKP_TAR_BEGIN__" 1>&2`,
+              `tar --ignore-failed-read ${tarIncrementalFlag} -czvf ${shellQuote(helperArchivePath)} -C / ${helperRelPaths.map((p) => shellQuote(p)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`,
+            ].join('; ');
+
+            await this.dockerService.runHelper({
+              binds: helperBinds,
+              cmd: helperCmd,
+              maxOkExitCode: 1,
+              onOutput: (line, stream) => {
+                const normalizedLine = String(line || '').trim();
+                if (!normalizedLine || stream !== 'stderr' || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) {
+                  return;
+                }
+                if (!normalizedLine.startsWith('tar:')) {
+                  fileCurrent += 1;
+                  updateFileProgress(normalizedLine);
+                } else {
+                  pushLog(`Aviso do tar: ${normalizedLine}`, 'gerando-tar');
+                }
+              },
+            });
+
+            pushLog(`Arquivo gerado via helper: ${absoluteArchivePath}`, 'finalizando');
+            pushLog('Snapshot incremental salvo no diretorio de backup.', 'finalizando');
+
+            onProgress({
+              containerName,
+              status: 'ok',
+              step: 'concluido',
+              message: 'Backup concluido com sucesso.',
+              percent: 100,
+              file: { current: Math.max(fileCurrent, fileTotal), total: fileTotal, currentFile: null, percent: 100 },
+            });
+            return containerBackup;
           }
 
           const tarParts = [

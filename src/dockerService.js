@@ -523,8 +523,81 @@ class DockerService {
     return true;
   }
 
-  async runHelper({ binds, cmd, onOutput }) {
+  // Igual ao runHelper, mas redireciona stdout para um arquivo local.
+  // Usado para containers BusyBox (sem GNU tar): monta os volumes no helper que TEM GNU tar
+  // e gera o archive + .snar diretamente no diretório de backup.
+  async runHelperStreamToFile({ binds, cmd, targetFilePath, onOutput, maxOkExitCode = 0 }) {
     await this.ensureImage();
+
+    const container = await this.docker.createContainer({
+      Image: this.helperImage,
+      Cmd: ['sh', '-c', cmd],
+      Tty: false,
+      HostConfig: {
+        Binds: binds,
+        AutoRemove: false,
+        NetworkMode: 'none',
+      },
+    });
+
+    let attachStream;
+
+    try {
+      attachStream = await container.attach({ stream: true, stdout: true, stderr: true });
+      const stdoutStream = new PassThrough();
+      const stderrStream = new PassThrough();
+      this.docker.modem.demuxStream(attachStream, stdoutStream, stderrStream);
+
+      await fsp.mkdir(path.dirname(targetFilePath), { recursive: true });
+      const writeStream = fs.createWriteStream(targetFilePath);
+      stdoutStream.pipe(writeStream);
+
+      const stderrDone = new Promise((resolve) => {
+        let buffer = '';
+        stderrStream.on('data', (chunk) => {
+          const text = chunk.toString('utf8');
+          buffer += text;
+          const parts = buffer.split(/\r?\n/);
+          buffer = parts.pop() || '';
+          for (const line of parts) {
+            if (typeof onOutput === 'function') onOutput(line, 'stderr');
+          }
+        });
+        stderrStream.on('end', () => {
+          if (buffer && typeof onOutput === 'function') onOutput(buffer, 'stderr');
+          resolve();
+        });
+      });
+
+      await container.start();
+      const result = await container.wait();
+
+      if (attachStream && typeof attachStream.destroy === 'function') {
+        attachStream.destroy();
+      }
+      stdoutStream.end();
+      stderrStream.end();
+
+      await Promise.all([
+        stderrDone,
+        new Promise((resolve, reject) => {
+          writeStream.on('finish', resolve);
+          writeStream.on('error', reject);
+        }),
+      ]);
+
+      if (result.StatusCode > maxOkExitCode) {
+        throw new Error(`Helper (stream) terminou com codigo ${result.StatusCode}`);
+      }
+    } finally {
+      if (attachStream && typeof attachStream.destroy === 'function') {
+        try { attachStream.destroy(); } catch { /* ignore */ }
+      }
+      try { await container.remove({ force: true }); } catch { /* ignore */ }
+    }
+  }
+
+  async runHelper({ binds, cmd, onOutput }) {    await this.ensureImage();
 
     const container = await this.docker.createContainer({
       Image: this.helperImage,
@@ -585,7 +658,7 @@ class DockerService {
 
       output = output.trim();
 
-      if (result.StatusCode !== 0) {
+      if (result.StatusCode > maxOkExitCode) {
         throw new Error(output || `Helper container terminou com codigo ${result.StatusCode}`);
       }
 

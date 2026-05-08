@@ -14,8 +14,9 @@ const elements = {
   backupDir: document.querySelector('#backupDir'),
   containerOptions: document.querySelector('#containerOptions'),
   profilesList: document.querySelector('#profilesList'),
-  formModeBadge: document.querySelector('#formModeBadge'),
   toast: document.querySelector('#toast'),
+  profileFormModal: document.querySelector('#profileFormModal'),
+  profileModalClose: document.querySelector('#profileModalClose'),
   restoreModal: document.querySelector('#restoreModal'),
   restoreModalSubtitle: document.querySelector('#restoreModalSubtitle'),
   restoreContainerOptions: document.querySelector('#restoreContainerOptions'),
@@ -66,6 +67,31 @@ document.querySelector('.sidebar').addEventListener('click', (e) => {
 
 document.querySelector('#createProfileBtn')?.addEventListener('click', () => navigateTo('profiles'));
 document.querySelector('#refreshServers')?.addEventListener('click', () => renderServers());
+
+// ─── Profile form modal ───────────────────────────────────
+function openProfileModal(title = 'Novo Profile') {
+  document.querySelector('#profileModalTitle').textContent = title;
+  elements.profileFormModal.classList.remove('hidden');
+  elements.profileFormModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeProfileModal() {
+  elements.profileFormModal.classList.add('hidden');
+  elements.profileFormModal.setAttribute('aria-hidden', 'true');
+}
+
+document.querySelector('#openCreateProfileModal')?.addEventListener('click', () => {
+  resetForm();
+  openProfileModal('Novo Profile');
+});
+
+elements.profileModalClose?.addEventListener('click', closeProfileModal);
+
+elements.profileFormModal?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-profile-modal"]')) {
+    closeProfileModal();
+  }
+});
 
 function renderServers() {
   const list = document.querySelector('#serversList');
@@ -754,9 +780,9 @@ async function renderProfiles() {
 function resetForm() {
   elements.profileForm.reset();
   elements.profileId.value = '';
-  elements.formModeBadge.textContent = 'criar';
   state.volumeSelections = {};
   renderContainers();
+  closeProfileModal();
 }
 
 function fillForm(profile) {
@@ -765,7 +791,6 @@ function fillForm(profile) {
   elements.backupDir.value = profile.backupDir;
   const backupScope = profile.backupScope === 'container' ? 'container' : 'volumes';
   document.querySelector(`input[name="backupScope"][value="${backupScope}"]`).checked = true;
-  elements.formModeBadge.textContent = 'editar';
   state.volumeSelections = Object.assign({}, profile.volumeSelections || {});
   renderContainers();
   for (const containerId of profile.containerIds) {
@@ -774,7 +799,7 @@ function fillForm(profile) {
       input.checked = true;
     }
   }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  openProfileModal('Editar Profile');
 }
 
 async function loadContainers() {
@@ -815,6 +840,7 @@ async function saveProfile(event) {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    closeProfileModal();
     await loadProfiles();
     resetForm();
     showToast('Profile salvo.');

@@ -167,66 +167,14 @@
         <div id="view-profiles" class="view hidden">
           <div class="page-header">
             <h1 class="page-title">Backup Profiles</h1>
-            <button id="reloadProfiles" class="btn btn--secondary">Reload</button>
+            <div class="page-header-actions">
+              <button id="openCreateProfileModal" class="btn btn--primary">+ Criar Profile</button>
+              <button id="reloadProfiles" class="btn btn--secondary">Reload</button>
+            </div>
           </div>
 
-          <div class="profiles-layout">
-            <div class="card">
-              <div class="card-toolbar">
-                <h2 class="card-title">New Profile</h2>
-                <span id="formModeBadge" class="badge badge--accent">criar</span>
-              </div>
-
-              <form id="profileForm" class="profile-form">
-                <input type="hidden" id="profileId" />
-
-                <div class="form-field">
-                  <label for="profileName">Nome do profile</label>
-                  <input id="profileName" name="name" type="text" placeholder="Backup banco principal" required />
-                </div>
-
-                <div class="form-field">
-                  <label for="backupDir">Diretório de backup no host Docker</label>
-                  <input id="backupDir" name="backupDir" type="text" placeholder="/srv/docker-backups" required />
-                </div>
-
-                <fieldset class="form-fieldset">
-                  <legend>Escopo do backup</legend>
-                  <div class="radio-grid">
-                    <label class="radio-card">
-                      <input type="radio" name="backupScope" value="volumes" checked />
-                      <span>Somente volumes</span>
-                      <small>mantém o comportamento atual de backup de volumes e binds</small>
-                    </label>
-                    <label class="radio-card">
-                      <input type="radio" name="backupScope" value="container" />
-                      <span>Container inteiro</span>
-                      <small>gera um único tar por container a partir de /</small>
-                    </label>
-                  </div>
-                </fieldset>
-
-                <div class="container-picker">
-                  <div class="picker-header">
-                    <span class="picker-label">Containers</span>
-                    <button id="refreshContainers" type="button" class="btn btn--ghost btn--sm">Atualizar lista</button>
-                  </div>
-                  <div id="containerOptions" class="container-options"></div>
-                </div>
-
-                <div class="form-actions">
-                  <button class="btn btn--primary" type="submit">Salvar profile</button>
-                  <button class="btn btn--secondary" type="button" id="clearForm">Limpar</button>
-                </div>
-              </form>
-            </div>
-
-            <div class="card">
-              <div class="card-toolbar">
-                <h2 class="card-title">Profiles Salvos</h2>
-              </div>
-              <div id="profilesList" class="profiles-list"></div>
-            </div>
+          <div class="card">
+            <div id="profilesList" class="profiles-list"></div>
           </div>
         </div>
 
@@ -318,6 +266,59 @@
         </div>
       </div>
     </div>
+    <div id="profileFormModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-profile-modal"></div>
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+        <div class="modal-header">
+          <h3 id="profileModalTitle">Novo Profile</h3>
+          <button id="profileModalClose" class="btn btn--ghost btn--sm" type="button">Fechar</button>
+        </div>
+
+        <form id="profileForm" class="profile-form">
+          <input type="hidden" id="profileId" />
+
+          <div class="form-field">
+            <label for="profileName">Nome do profile</label>
+            <input id="profileName" name="name" type="text" placeholder="Backup banco principal" required />
+          </div>
+
+          <div class="form-field">
+            <label for="backupDir">Diretório de backup no host Docker</label>
+            <input id="backupDir" name="backupDir" type="text" placeholder="/srv/docker-backups" required />
+          </div>
+
+          <fieldset class="form-fieldset">
+            <legend>Escopo do backup</legend>
+            <div class="radio-grid">
+              <label class="radio-card">
+                <input type="radio" name="backupScope" value="volumes" checked />
+                <span>Somente volumes</span>
+                <small>mantém o comportamento atual de backup de volumes e binds</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="backupScope" value="container" />
+                <span>Container inteiro</span>
+                <small>gera um único tar por container a partir de /</small>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="container-picker">
+            <div class="picker-header">
+              <span class="picker-label">Containers</span>
+              <button id="refreshContainers" type="button" class="btn btn--ghost btn--sm">Atualizar lista</button>
+            </div>
+            <div id="containerOptions" class="container-options"></div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--primary" type="submit">Salvar profile</button>
+            <button class="btn btn--secondary" type="button" id="clearForm">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="/app.js"></script>
   </body>
 </html>

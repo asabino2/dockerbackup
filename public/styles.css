@@ -146,6 +146,12 @@ button, input, select {
   margin-bottom: 24px;
 }
 
+.page-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .page-title {
   font-size: 22px;
   font-weight: 700;
@@ -804,6 +810,11 @@ button, input, select {
   padding: 20px;
   display: grid;
   gap: 12px;
+}
+
+.modal-card--wide {
+  width: min(720px, calc(100vw - 24px));
+  max-height: min(90vh, 800px);
 }
 
 .modal-header {

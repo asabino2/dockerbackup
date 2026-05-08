@@ -510,6 +510,9 @@ class BackupService {
             pushLog(`Arquivo gerado via helper: ${absoluteArchivePath}`, 'finalizando');
             pushLog('Snapshot incremental salvo no diretorio de backup.', 'finalizando');
 
+            containerBackup.fileCount = Math.max(fileCurrent, fileTotal);
+            try { containerBackup.archiveSize = (await fs.stat(absoluteArchivePath)).size; } catch {}
+
             onProgress({
               containerName,
               status: 'ok',
@@ -585,6 +588,9 @@ class BackupService {
           }
         }
 
+        containerBackup.fileCount = Math.max(fileCurrent, fileTotal);
+        try { containerBackup.archiveSize = (await fs.stat(absoluteArchivePath)).size; } catch {}
+
         onProgress({
           containerName,
           status: 'ok',
@@ -654,6 +660,12 @@ class BackupService {
       if (wasRunning) {
         await this.dockerService.startContainer(containerId).catch(() => null);
       }
+
+      containerBackup.fileCount = Math.max(fileCurrent, fileTotal);
+      try {
+        const hostArchivePath = path.join(profile.backupDir, ...archiveRelativePath.split('/'));
+        containerBackup.archiveSize = (await fs.stat(hostArchivePath)).size;
+      } catch {}
 
       onProgress({
         containerName,

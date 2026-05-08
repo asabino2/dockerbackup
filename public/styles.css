@@ -792,6 +792,14 @@ button, input, select {
   place-items: center;
 }
 
+#profileFormModal {
+  z-index: 60;
+}
+
+#volumePickerModal {
+  z-index: 70;
+}
+
 .modal-backdrop {
   position: absolute;
   inset: 0;

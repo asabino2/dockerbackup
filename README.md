@@ -1,39 +1,75 @@
-# Docker Backup App 
+<p align="center">
+  <img src="./public/docker_backup_icon_for_appstore.png" width="200" alt="DockerBackup" />
+</p>
 
-⚠️ **AVISO CRÍTICO:** Esta é uma aplicação em estágio inicial de desenvolvimento, não use em produção de forma alguma, há risco de perda de dados ⚠️ 
+<h1 align="center">DockerBackup</h1>
 
-Aplicacao web para cadastrar profiles de backup de containers Docker, executar backup full ou incremental e restaurar snapshots de volumes e bind mounts.
+<p align="center">
+  <em>Backup e restauração de containers Docker via interface web, com suporte a snapshots incrementais e restore seletivo.</em>
+</p>
 
-## Como funciona
+<p align="center">
+  <img src="https://img.shields.io/badge/VERSION-1.0.0-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
+  <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/STATUS-ACTIVE-success?style=flat-square" />
+</p>
 
-- O app lista os containers via Docker socket.
-- Cada backup processa um container por vez: para, executa o backup dos mounts elegiveis e sobe novamente se ele estava rodando.
-- O backup usa um container auxiliar com GNU tar e `--listed-incremental` para gerar arquivos compactados `.tar.gz`.
-- Quando o app roda dentro de Docker, backup e restore sao feitos via Docker API (`getArchive`/`putArchive`) sem criar helper e sem mapear o root do host.
-- Ha dois escopos por profile: `somente volumes` (comportamento tradicional) e `container inteiro` (tar unico por container a partir de `/`).
-- O restore aplica a cadeia full + incrementais sobre os mounts atuais do container, limpando o conteudo antes de reconstituir o snapshot escolhido.
-- Ao restaurar um backup, e possivel escolher quais containers do backup serao restaurados.
+> ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-## Requisitos
+Versão atual: **1.0.0**
 
-- Docker Engine com acesso ao socket em `/var/run/docker.sock`.
-- O diretorio de backup informado no profile precisa ser visivel para o Docker daemon.
-- Em Docker Desktop no Windows, quando o app roda fora de container, paths como `C:\backups` sao convertidos automaticamente para `/run/desktop/mnt/host/c/backups`.
-- Quando o app roda dentro de container, use um caminho absoluto interno do container (ex.: `/app/data/backups`).
-- O escopo `container inteiro` exige que o app esteja rodando em Docker para usar backup/restore nativos sem helper.
+---
 
-## Executando com Docker Compose
+## 🗄️ Visão geral
+
+O `dockerbackup` fornece:
+
+- Cadastro de **profiles de backup** por container
+- Backup **full e incremental** com GNU tar + `--listed-incremental`
+- Restore seletivo de snapshots, escolhendo quais containers restaurar
+- Suporte a dois escopos: `somente volumes` e `container inteiro`
+- Quando rodando dentro do Docker, usa a API nativa (`getArchive`/`putArchive`) sem helper
+
+---
+
+## ⚙️ Instalação
+
+```bash
+npm install
+```
+
+### Requisitos
+
+- Docker Engine com acesso ao socket em `/var/run/docker.sock`
+- O diretório de backup configurado no profile precisa ser visível para o Docker daemon
+- Em Docker Desktop no Windows (fora de container), paths como `C:\backups` são convertidos automaticamente para `/run/desktop/mnt/host/c/backups`
+- O escopo `container inteiro` exige que o app esteja rodando em Docker
+
+---
+
+## ▶️ Execução
+
+### Com Docker Compose (recomendado)
 
 ```bash
 docker compose up --build
 ```
 
-Abra `http://localhost:3000`.
+Acesse `http://localhost:3000`.
 
-O arquivo `docker-compose.example.yml` foi mantido como referencia equivalente ao compose principal.
+### Sem Docker
 
-## Observacoes
+```bash
+npm start
+```
 
-- O restore valida se o conjunto de mounts do container continua igual ao do backup selecionado.
-- O catalogo de profiles e historico de backups fica salvo em `./data/store.json`.
-- Os arquivos `.tar.gz` sao gravados no diretorio de backup configurado em cada profile.
+---
+
+## 📋 Observações
+
+- O restore valida se o conjunto de mounts do container continua igual ao do backup selecionado
+- O catálogo de profiles e histórico de backups fica em `./data/store.json`
+- Os arquivos `.tar.gz` são gravados no diretório configurado em cada profile
+- O arquivo `docker-compose.example.yml` foi mantido como referência equivalente ao compose principal

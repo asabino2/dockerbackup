@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.2-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.3-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,17 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.1.2**
+Versão atual: **0.1.3**
 
 ---
 
 ## � Changelog
+### [0.1.3] — 2026-05-09
+
+#### Corrigido
+- **Restore incremental não aplicava o archive incremental (bug crítico):** o `tar` frequentemente retorna código de saída `1` durante a extração em volumes (avisos de permissão/ownership que não são erros fatais). Como o script do helper era gerado com `set -e` e comandos encadeados por `&&`, qualquer exit code `1` do archive full abortava a cadeia antes de aplicar os archives incrementais. Corrigido: removido `set -e` e a junção por `&&`; cada comando `tar` agora usa `; RC=$?; [ $RC -le 1 ] || exit $RC` para aceitar código `0` ou `1` como sucesso e falhar apenas em `>= 2` (erros fatais do tar).
+- **Path não-nativo (fora do Docker) montava volumes em `/restore/mN`:** o caminho de restore fora do Docker montava volumes em `/restore/m0`, `/restore/m1` etc. e extraía com `-C /restore`, mas os archives gerados pelo helper atualizado têm paths reais (`a0/...`, `var/lib/gitea/...`). Corrigido: o path não-nativo agora monta cada volume no seu path real (igual ao path nativo) e extrai com `-C /`, tornando os dois paths consistentes.
+
 ### [0.1.2] — 2026-05-09
 
 #### Corrigido

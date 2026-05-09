@@ -916,7 +916,7 @@ class BackupService {
 
           const helperBackupRoot = `/backuproot_base${selfBind.suffix}`;
           const helperBinds = [`${selfBind.source}:/backuproot_base:ro`];
-          const helperCmds = ['set -e'];
+          const helperCmds = [];
 
           // Montar cada volume no seu path real e preparar limpeza.
           for (const mount of currentMounts) {
@@ -931,10 +931,14 @@ class BackupService {
           pushLog('Limpando volumes e restaurando archives via helper.', 'preparando');
 
           // Adicionar extração de cada archive.
+          // IMPORTANTE: não usar 'set -e' nem '&&' — tar retorna código 1 (avisos de
+          // permissão/ownership) ao extrair em volumes. Com set -e/&&, o incremental
+          // nunca seria aplicado porque o full aborta a cadeia. Tratar código 1 como
+          // sucesso e apenas falhar com código >= 2.
           for (const [index, entry] of chain.entries()) {
             const archivePath = `${helperBackupRoot}/${entry.archiveRelativePath}`;
             helperCmds.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
-            helperCmds.push(`tar -xzf ${shellQuote(archivePath)} -C /`);
+            helperCmds.push(`tar -xzf ${shellQuote(archivePath)} -C /; RC=$?; [ $RC -le 1 ] || exit $RC`);
           }
 
           // Emite progresso inicial (o helper roda tudo de uma vez, sem granularidade por arquivo).
@@ -946,7 +950,7 @@ class BackupService {
 
           await this.dockerService.runHelper({
             binds: helperBinds,
-            cmd: helperCmds.join(' && '),
+            cmd: helperCmds.join('\n'),
             onOutput: (line) => {
               const normalized = String(line || '').trim();
               if (normalized) pushLog(normalized, 'restaurando');
@@ -1007,21 +1011,24 @@ class BackupService {
     const backupRoot = normalizeDockerHostPath(profile.backupDir);
     const wasRunning = inspect.State?.Running === true;
     const binds = [`${backupRoot}:/backuproot:ro`];
-    for (const [index, mount] of currentMounts.entries()) {
-      binds.push(`${getMountBindingSource(mount)}:/restore/m${index}`);
+    const helperCmds = [];
+
+    // Montar cada volume/bind no seu path real (igual ao path nativo).
+    // Archives criados pelo helper já têm entries com paths reais (a0/..., var/lib/gitea/...),
+    // então extrair com -C / coloca os arquivos nos volumes montados corretamente.
+    for (const mount of currentMounts) {
+      if (restorePaths && restorePaths.length > 0 && !restorePaths.includes(mount.destination)) continue;
+      binds.push(`${getMountBindingSource(mount)}:${mount.destination}`);
+      helperCmds.push(
+        `find ${shellQuote(mount.destination)} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null || true`
+      );
     }
 
-    const cleanupCommands = currentMounts.map((_mount, index) => (
-      `find ${shellQuote(`/restore/m${index}`)} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +`
-    ));
-
-    // Sem --listed-incremental: extração simples sobrepos­crita de arquivos.
-    // O --listed-incremental=/dev/null (modo snapshot vazio) causava deleção incorreta
-    // de arquivos já restaurados pelo backup full ao aplicar os incrementais seguintes.
-    const restoreCommands = [];
+    // Extração de cada archive sem set -e/&&: tar frequentemente retorna código 1
+    // (avisos de permissão/ownership) — aceitar código 1 como sucesso, falhar apenas em >= 2.
     for (const [index, entry] of chain.entries()) {
-      restoreCommands.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
-      restoreCommands.push(`tar -xzf ${shellQuote(`/backuproot/${entry.archiveRelativePath}`)} -C /restore`);
+      helperCmds.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
+      helperCmds.push(`tar -xzf ${shellQuote(`/backuproot/${entry.archiveRelativePath}`)} -C /; RC=$?; [ $RC -le 1 ] || exit $RC`);
     }
 
     try {
@@ -1029,10 +1036,9 @@ class BackupService {
         await this.dockerService.stopContainer(targetEntry.containerId);
       }
 
-      const cmd = ['set -eu', ...cleanupCommands, ...restoreCommands].join(' && ');
       await this.dockerService.runHelper({
         binds,
-        cmd,
+        cmd: helperCmds.join('\n'),
         onOutput: (line) => {
           const normalized = String(line || '').trim();
           if (normalized) pushLog(normalized, 'restaurando');

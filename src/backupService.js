@@ -473,10 +473,13 @@ class BackupService {
             const helperBackupRoot = `/backuproot_base${selfBind.suffix}`;
             const helperBinds = [`${selfBind.source}:/backuproot_base`];
             const helperRelPaths = [];
-            for (const [index, mount] of activeMounts.entries()) {
+            for (const mount of activeMounts) {
               const src = mount.type === 'volume' ? mount.name : mount.source;
-              helperBinds.push(`${src}:/payload/m${index}:ro`);
-              helperRelPaths.push(`payload/m${index}`);
+              // Monta no path real do container (ex: /var/lib/gitea) para que o archive
+              // gerado tenha entradas com os paths corretos (ex: var/lib/gitea/...).
+              // Isso garante compatibilidade com o restore via helper.
+              helperBinds.push(`${src}:${mount.destination}:ro`);
+              helperRelPaths.push(toContainerRelPath(mount.destination));
             }
             const helperArchivePath = `${helperBackupRoot}/${archiveRelativePath}`;
             const helperSnarPath = `${helperBackupRoot}/${snapshotRelativePath}`;
@@ -895,53 +898,66 @@ class BackupService {
             await fs.access(path.posix.join(backupRoot, entry.archiveRelativePath));
           }
 
-          // Limpar volumes antes do restore para garantir estado consistente.
-          // Usa helper container que monta os mesmos volumes do container alvo.
-          pushLog('Limpando volumes antes do restore.', 'preparando');
-          const cleanupHelperBinds = [];
-          const cleanupHelperCmds = ['set -e'];
-          for (const [idx, mount] of currentMounts.entries()) {
-            if (!restorePaths.includes(mount.destination)) continue;
-            const src = mount.type === 'volume' ? mount.name : mount.source;
-            cleanupHelperBinds.push(`${src}:/cleanvol/m${idx}`);
-            cleanupHelperCmds.push(`find /cleanvol/m${idx} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null || true`);
-          }
-          if (cleanupHelperBinds.length) {
-            await this.dockerService.runHelper({
-              binds: cleanupHelperBinds,
-              cmd: cleanupHelperCmds.join(' && '),
-              onOutput: (line) => {
-                const normalized = String(line || '').trim();
-                if (normalized) pushLog(normalized, 'preparando');
-              },
-            });
-          }
-          pushLog('Volumes limpos. Iniciando restauracao dos archives.', 'preparando');
-
-          // Restaurar via Docker API (putArchive) — funciona com container parado.
-          // O archive foi gerado com -C / incluindo os caminhos relativos dos volumes,
-          // portanto o destino do putArchive e sempre /.
-          for (const [index, entry] of chain.entries()) {
-            const absoluteArchivePath = path.posix.join(backupRoot, entry.archiveRelativePath);
-
-            onProgress({
-              step: 'restaurando',
-              file: {
-                current: index + 1,
-                total: chain.length,
-                currentFile: entry.archiveRelativePath,
-                percent: Math.round(((index + 1) / chain.length) * 100),
-              },
-              percent: Math.round(((index + 1) / chain.length) * 100),
-            });
-            pushLog(`Aplicando arquivo ${index + 1}/${chain.length}: ${entry.archiveRelativePath}`, 'restaurando');
-
-            await this.dockerService.putCompressedArchiveFromFile(
-              targetEntry.containerId,
-              '/',
-              absoluteArchivePath,
+          // Para restore de volumes no modo Docker-nativo, NÃO usamos putArchive.
+          // putArchive num container parado escreve na camada overlay do container,
+          // não nos volumes nomeados. Quando o container inicia, o volume montado
+          // (agora vazio após a limpeza) sobrepõe a camada → arquivos invisíveis.
+          //
+          // Solução: helper container que monta os volumes nos seus paths reais
+          // (ex: gitea_data:/var/lib/gitea) e extrai o archive com -C /.
+          // O archive já tem as entradas nos paths reais (ex: var/lib/gitea/...).
+          const selfBind = await this.dockerService.getSelfBindSource(backupRoot);
+          if (!selfBind) {
+            throw new Error(
+              `Nao foi possivel determinar o source do diretorio de backup (${backupRoot}) para o helper de restore. ` +
+              'Verifique se o diretorio de backup esta montado via volume ou bind no container da app.'
             );
           }
+
+          const helperBackupRoot = `/backuproot_base${selfBind.suffix}`;
+          const helperBinds = [`${selfBind.source}:/backuproot_base:ro`];
+          const helperCmds = ['set -e'];
+
+          // Montar cada volume no seu path real e preparar limpeza.
+          for (const mount of currentMounts) {
+            if (!restorePaths.includes(mount.destination)) continue;
+            const src = mount.type === 'volume' ? mount.name : mount.source;
+            helperBinds.push(`${src}:${mount.destination}`);
+            helperCmds.push(
+              `find ${shellQuote(mount.destination)} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null || true`
+            );
+          }
+
+          pushLog('Limpando volumes e restaurando archives via helper.', 'preparando');
+
+          // Adicionar extração de cada archive.
+          for (const [index, entry] of chain.entries()) {
+            const archivePath = `${helperBackupRoot}/${entry.archiveRelativePath}`;
+            helperCmds.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
+            helperCmds.push(`tar -xzf ${shellQuote(archivePath)} -C /`);
+          }
+
+          // Emite progresso inicial (o helper roda tudo de uma vez, sem granularidade por arquivo).
+          onProgress({
+            step: 'restaurando',
+            file: { current: 0, total: chain.length, currentFile: null, percent: 0 },
+            percent: 10,
+          });
+
+          await this.dockerService.runHelper({
+            binds: helperBinds,
+            cmd: helperCmds.join(' && '),
+            onOutput: (line) => {
+              const normalized = String(line || '').trim();
+              if (normalized) pushLog(normalized, 'restaurando');
+            },
+          });
+
+          onProgress({
+            step: 'finalizando',
+            file: { current: chain.length, total: chain.length, currentFile: null, percent: 100 },
+            percent: 100,
+          });
 
           pushLog('Restore de volumes concluido.', 'finalizando');
         } else {
@@ -950,19 +966,10 @@ class BackupService {
             await fs.access(path.posix.join(backupRoot, entry.archiveRelativePath));
           }
 
-          // Para escopo container, inicia temporariamente para limpeza antes do restore.
-          pushLog('Iniciando container temporariamente para limpeza do filesystem.', 'preparando');
-          await this.dockerService.repairAndStartContainer(targetEntry.containerId);
-          try {
-            await this.dockerService.runContainerCommand(
-              targetEntry.containerId,
-              'find / -mindepth 1 -maxdepth 1 -not -path "/proc" -not -path "/sys" -not -path "/dev" -not -path "/run" -exec rm -rf -- {} + 2>/dev/null; true',
-            );
-          } finally {
-            await this.dockerService.stopContainer(targetEntry.containerId).catch(() => null);
-          }
-          pushLog('Filesystem limpo. Restaurando archives.', 'preparando');
-
+          // Para escopo container, restaura via putArchive (escreve na camada do container).
+          // Nota: paths cobertos por volumes nomeados não serão restaurados via esta rota,
+          // pois o volume sobrepõe a camada após o container iniciar. Para esses cases,
+          // use o escopo 'volumes' em vez de 'container'.
           for (const [index, entry] of chain.entries()) {
             const absoluteArchivePath = path.posix.join(backupRoot, entry.archiveRelativePath);
 

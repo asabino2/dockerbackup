@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.1-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.2-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,17 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.1.1**
+Versão atual: **0.1.2**
 
 ---
 
 ## � Changelog
+### [0.1.2] — 2026-05-09
+
+#### Corrigido
+- **Restore de volumes não restaurava arquivos (bug crítico):** `putArchive` em container parado escreve na camada overlay do container, não nos volumes nomeados. Ao iniciar, o volume montado (vazio após a limpeza) sobrepunha a camada, tornando os arquivos restaurados invisíveis. Corrigido: o restore de volumes agora usa um helper container que monta cada volume no seu path real (ex: `gitea_data:/var/lib/gitea`) e extrai os archives diretamente lá com `tar -xzf ... -C /`.
+- **Backup via helper BusyBox gerava archive com paths incompatíveis:** containers sem GNU tar (Alpine/BusyBox) criavam o archive montando volumes em `/payload/m0`, `/payload/m1` etc., gerando entradas como `payload/m0/arquivo`. Isso era incompativel com o restore que esperava paths no formato real (`var/lib/gitea/arquivo`). Corrigido: o helper agora monta cada volume no seu path real no container (ex: `/var/lib/gitea`), gerando o mesmo formato de archive que o GNU tar nativo.
+
 ### [0.1.1] — 2026-05-09
 
 #### Corrigido

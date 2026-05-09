@@ -895,6 +895,29 @@ class BackupService {
             await fs.access(path.posix.join(backupRoot, entry.archiveRelativePath));
           }
 
+          // Limpar volumes antes do restore para garantir estado consistente.
+          // Usa helper container que monta os mesmos volumes do container alvo.
+          pushLog('Limpando volumes antes do restore.', 'preparando');
+          const cleanupHelperBinds = [];
+          const cleanupHelperCmds = ['set -e'];
+          for (const [idx, mount] of currentMounts.entries()) {
+            if (!restorePaths.includes(mount.destination)) continue;
+            const src = mount.type === 'volume' ? mount.name : mount.source;
+            cleanupHelperBinds.push(`${src}:/cleanvol/m${idx}`);
+            cleanupHelperCmds.push(`find /cleanvol/m${idx} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null || true`);
+          }
+          if (cleanupHelperBinds.length) {
+            await this.dockerService.runHelper({
+              binds: cleanupHelperBinds,
+              cmd: cleanupHelperCmds.join(' && '),
+              onOutput: (line) => {
+                const normalized = String(line || '').trim();
+                if (normalized) pushLog(normalized, 'preparando');
+              },
+            });
+          }
+          pushLog('Volumes limpos. Iniciando restauracao dos archives.', 'preparando');
+
           // Restaurar via Docker API (putArchive) — funciona com container parado.
           // O archive foi gerado com -C / incluindo os caminhos relativos dos volumes,
           // portanto o destino do putArchive e sempre /.
@@ -926,6 +949,19 @@ class BackupService {
           for (const entry of chain) {
             await fs.access(path.posix.join(backupRoot, entry.archiveRelativePath));
           }
+
+          // Para escopo container, inicia temporariamente para limpeza antes do restore.
+          pushLog('Iniciando container temporariamente para limpeza do filesystem.', 'preparando');
+          await this.dockerService.repairAndStartContainer(targetEntry.containerId);
+          try {
+            await this.dockerService.runContainerCommand(
+              targetEntry.containerId,
+              'find / -mindepth 1 -maxdepth 1 -not -path "/proc" -not -path "/sys" -not -path "/dev" -not -path "/run" -exec rm -rf -- {} + 2>/dev/null; true',
+            );
+          } finally {
+            await this.dockerService.stopContainer(targetEntry.containerId).catch(() => null);
+          }
+          pushLog('Filesystem limpo. Restaurando archives.', 'preparando');
 
           for (const [index, entry] of chain.entries()) {
             const absoluteArchivePath = path.posix.join(backupRoot, entry.archiveRelativePath);
@@ -972,9 +1008,14 @@ class BackupService {
       `find ${shellQuote(`/restore/m${index}`)} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +`
     ));
 
-    const restoreCommands = chain.map((entry) => (
-      `tar --listed-incremental=/dev/null -xzf ${shellQuote(`/backuproot/${entry.archiveRelativePath}`)} -C /restore`
-    ));
+    // Sem --listed-incremental: extração simples sobrepos­crita de arquivos.
+    // O --listed-incremental=/dev/null (modo snapshot vazio) causava deleção incorreta
+    // de arquivos já restaurados pelo backup full ao aplicar os incrementais seguintes.
+    const restoreCommands = [];
+    for (const [index, entry] of chain.entries()) {
+      restoreCommands.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
+      restoreCommands.push(`tar -xzf ${shellQuote(`/backuproot/${entry.archiveRelativePath}`)} -C /restore`);
+    }
 
     try {
       if (wasRunning) {
@@ -982,7 +1023,14 @@ class BackupService {
       }
 
       const cmd = ['set -eu', ...cleanupCommands, ...restoreCommands].join(' && ');
-      await this.dockerService.runHelper({ binds, cmd });
+      await this.dockerService.runHelper({
+        binds,
+        cmd,
+        onOutput: (line) => {
+          const normalized = String(line || '').trim();
+          if (normalized) pushLog(normalized, 'restaurando');
+        },
+      });
     } finally {
       if (wasRunning) {
         await this.dockerService.startContainer(targetEntry.containerId).catch(() => null);

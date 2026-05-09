@@ -465,6 +465,7 @@ async function renderBackupsView() {
           <h2 class="card-title">${escapeHtml(profile.name)}</h2>
           <span class="badge">${escapeHtml(String(totalBackups))} backup(s)</span>
         </div>
+        <div class="run-progress hidden" data-run-progress="${escapeHtml(profile.id)}"></div>
         <div class="table-wrap">
           <table class="data-table">
             <thead><tr><th>Data</th><th>Tipo</th><th>Status</th><th>Containers</th><th>Ações</th></tr></thead>
@@ -474,6 +475,8 @@ async function renderBackupsView() {
       </div>
     `;
   }).join('');
+
+  renderAllRunProgress();
 }
 
 function renderBackupRow(b, profile, isFull) {
@@ -988,14 +991,17 @@ function progressBar(percent) {
 
 function renderRunProgress(profileId) {
   const run = state.activeRuns.get(profileId);
-  const host = document.querySelector(`[data-run-progress="${profileId}"]`);
-  if (!host) {
+  // Atualiza TODOS os elementos com o atributo (pode existir na aba Profiles E na aba Backups).
+  const hosts = document.querySelectorAll(`[data-run-progress="${CSS.escape(profileId)}"]`);
+  if (!hosts.length) {
     return;
   }
 
   if (!run || !run.progress) {
-    host.innerHTML = '';
-    host.classList.add('hidden');
+    for (const host of hosts) {
+      host.innerHTML = '';
+      host.classList.add('hidden');
+    }
     return;
   }
 
@@ -1009,8 +1015,7 @@ function renderRunProgress(profileId) {
   const operation = run?.kind === 'restore' || run?.progress?.operation === 'restore' ? 'restore' : 'backup';
   const operationTitle = operation === 'restore' ? 'Progresso do restore' : 'Progresso do backup';
 
-  host.classList.remove('hidden');
-  host.innerHTML = `
+  const progressHtml = `
     <div class="progress-card">
       <div class="progress-header">
         <strong>${escapeHtml(operationTitle)}</strong>
@@ -1055,6 +1060,11 @@ function renderRunProgress(profileId) {
       </div>
     </div>
   `;
+
+  for (const host of hosts) {
+    host.classList.remove('hidden');
+    host.innerHTML = progressHtml;
+  }
 }
 
 function renderAllRunProgress() {
@@ -1358,6 +1368,9 @@ async function handleProfileAction(event) {
       const run = await pollRun(profileId, start.runId);
       state.activeRuns.delete(profileId);
       await loadProfiles();
+      if (!document.querySelector('#view-backups')?.classList.contains('hidden')) {
+        await renderBackupsView();
+      }
 
       if (run.status === 'error') {
         showToast(run.error || 'Falha durante a execucao do restore.', true);

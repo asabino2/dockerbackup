@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.0-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.1-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,23 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.1.0**
+Versão atual: **0.1.1**
 
 ---
 
 ## � Changelog
+### [0.1.1] — 2026-05-09
+
+#### Corrigido
+- **Bug crítico no restore de backups:** o comando `tar --listed-incremental=/dev/null` era usado na extração, o que apagava arquivos já restaurados pelo backup full ao aplicar incrementais subsequentes, deixando os volumes vazios. Substituído por extração simples (`tar -xzf`), que sobrepõe corretamente o full + cada incremental.
+- **Restore via helper container agora emite logs:** o `runHelper` do restore passou a receber `onOutput`, de modo que cada linha do `tar` e das etapas de limpeza aparece no log de progresso.
+- **Limpeza de volumes antes do restore (caminho Docker nativo):** antes de aplicar os archives via `putArchive`, um helper container monta os mesmos volumes do container alvo e remove o conteúdo anterior, garantindo estado consistente pós-restore.
+- **Limpeza antes do restore de container inteiro (caminho Docker nativo):** o container é iniciado temporariamente para executar a limpeza do filesystem antes de restaurar via `putArchive`.
+
+#### Adicionado
+- **Log de progresso do restore na aba Backups:** a aba Backups agora exibe o card de progresso (com barras de progresso, etapa atual e log detalhado) durante a execução de um restore, da mesma forma que a aba Profiles já fazia. O card desaparece e a tabela é atualizada ao término.
+- **Atualização automática da aba Backups após restore:** ao concluir o restore com a aba Backups visível, a tabela é recarregada automaticamente para refletir o estado atual dos backups.
+
 ### [0.1.0] — 2026-05-09
 
 #### Adicionado

@@ -239,6 +239,68 @@ elements.storageLocationsList?.addEventListener('click', async (e) => {
   }
 });
 
+// ─── Directory Browser Modal ──────────────────────────────
+let _dirBrowserCurrentPath = '/';
+
+function openDirBrowser() {
+  const initial = elements.storageLocationDir.value.trim() || '/';
+  _dirBrowserCurrentPath = initial;
+  const modal = document.querySelector('#dirBrowserModal');
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  loadDirBrowserPath(initial);
+}
+
+function closeDirBrowser() {
+  const modal = document.querySelector('#dirBrowserModal');
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+async function loadDirBrowserPath(dirPath) {
+  _dirBrowserCurrentPath = dirPath;
+  document.querySelector('#dirBrowserCurrent').textContent = dirPath;
+  const list = document.querySelector('#dirBrowserList');
+  list.innerHTML = '<div class="dir-browser-empty">Carregando…</div>';
+
+  let data;
+  try {
+    data = await api(`/api/browse-dirs?path=${encodeURIComponent(dirPath)}`);
+  } catch (err) {
+    list.innerHTML = `<div class="dir-browser-empty">${escapeHtml(err.message)}</div>`;
+    return;
+  }
+
+  const folderSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const upSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>`;
+
+  let html = '';
+  if (data.parent !== null) {
+    html += `<div class="dir-browser-item dir-browser-item--up" data-dir-path="${escapeHtml(data.parent)}">${upSvg}<span>.. (subir)</span></div>`;
+  }
+  if (data.dirs.length === 0 && data.parent === null) {
+    html += '<div class="dir-browser-empty">Nenhum subdiretório encontrado.</div>';
+  } else {
+    html += data.dirs.map((d) =>
+      `<div class="dir-browser-item" data-dir-path="${escapeHtml(d.path)}">${folderSvg}<span>${escapeHtml(d.name)}</span></div>`
+    ).join('');
+  }
+  list.innerHTML = html;
+
+  list.querySelectorAll('.dir-browser-item[data-dir-path]').forEach((item) => {
+    item.addEventListener('click', () => loadDirBrowserPath(item.dataset.dirPath));
+  });
+}
+
+document.querySelector('#browseDirBtn')?.addEventListener('click', openDirBrowser);
+document.querySelector('#dirBrowserClose')?.addEventListener('click', closeDirBrowser);
+document.querySelector('#dirBrowserCancel')?.addEventListener('click', closeDirBrowser);
+document.querySelector('#dirBrowserBackdrop')?.addEventListener('click', closeDirBrowser);
+document.querySelector('#dirBrowserSelect')?.addEventListener('click', () => {
+  elements.storageLocationDir.value = _dirBrowserCurrentPath;
+  closeDirBrowser();
+});
+
 // ─── Full Backup Picker Modal ─────────────────────────────
 function askFullBackupSelection(fullBackups, profileName) {
   elements.fullBackupPickerOptions.innerHTML = fullBackups.map((b) => `

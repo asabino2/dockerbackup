@@ -479,6 +479,30 @@ async function main() {
     }
   });
 
+  app.get('/api/browse-dirs', authMiddleware, async (request, response) => {
+    try {
+      const rawPath = typeof request.query.path === 'string' ? request.query.path : '/';
+      const dirPath = path.resolve('/', rawPath.replace(/\0/g, ''));
+
+      let entries;
+      try {
+        entries = await fs.readdir(dirPath, { withFileTypes: true });
+      } catch {
+        return response.status(400).json({ error: 'Não foi possível ler o diretório.' });
+      }
+
+      const dirs = entries
+        .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+        .map((e) => ({ name: e.name, path: path.join(dirPath, e.name) }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const parent = dirPath !== '/' ? path.dirname(dirPath) : null;
+      response.json({ current: dirPath, parent, dirs });
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
   app.listen(config.port, () => {
     console.log(`Docker Backup app ouvindo na porta ${config.port}`);
   });

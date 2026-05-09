@@ -1109,6 +1109,111 @@ button, input, select {
 
 .volume-blocked { opacity: 0.5; cursor: not-allowed; }
 
+/* --- Dir Input Group ------------------------------------- */
+.dir-input-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dir-input-group input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dir-browse-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+/* --- Dir Browser Modal ----------------------------------- */
+#dirBrowserModal {
+  z-index: 80;
+}
+
+.dir-browser-card {
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(75vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dir-browser-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 34px;
+}
+
+.dir-browser-current-path {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.dir-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 120px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.dir-browser-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.dir-browser-item:hover {
+  background: var(--bg);
+}
+
+.dir-browser-item--up {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.dir-browser-item svg {
+  flex-shrink: 0;
+  color: var(--accent, #3b82f6);
+}
+
+.dir-browser-item--up svg {
+  color: var(--text-muted);
+}
+
+.dir-browser-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px 0;
+}
+
 /* --- Responsive ------------------------------------------ */
 @media (max-width: 900px) {
   :root { --sidebar-w: 60px; }

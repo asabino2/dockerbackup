@@ -453,13 +453,38 @@
           </div>
           <div class="form-field">
             <label for="storageLocationDir">Diretório</label>
-            <input id="storageLocationDir" type="text" placeholder="/srv/docker-backups" required />
+            <div class="dir-input-group">
+              <input id="storageLocationDir" type="text" placeholder="/srv/docker-backups" required />
+              <button type="button" id="browseDirBtn" class="btn btn--secondary btn--sm dir-browse-btn" title="Procurar diretório">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </button>
+            </div>
           </div>
           <div class="form-actions">
             <button class="btn btn--primary" type="submit">Salvar</button>
             <button class="btn btn--secondary" type="button" id="cancelStorageForm">Cancelar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal: Navegador de Diretórios -->
+    <div id="dirBrowserModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" id="dirBrowserBackdrop"></div>
+      <div class="modal-card dir-browser-card" role="dialog" aria-modal="true" aria-labelledby="dirBrowserTitle">
+        <div class="modal-header">
+          <h3 id="dirBrowserTitle">Selecionar Diretório</h3>
+          <button id="dirBrowserClose" class="btn btn--ghost btn--sm" type="button">Fechar</button>
+        </div>
+        <div class="dir-browser-breadcrumb">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="dirBrowserCurrent" class="dir-browser-current-path"></span>
+        </div>
+        <div id="dirBrowserList" class="dir-browser-list"></div>
+        <div class="modal-actions">
+          <button id="dirBrowserSelect" class="btn btn--primary" type="button">Selecionar este diretório</button>
+          <button id="dirBrowserCancel" class="btn btn--secondary" type="button">Cancelar</button>
+        </div>
       </div>
     </div>
 

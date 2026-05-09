@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.0.2-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.0.5-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,21 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.0.2**
+Versão atual: **0.0.5**
 
 ---
 
-## � Changelog### [0.0.4] — Correções de bugs
+## � Changelog
+
+### [0.0.5] — 2026-05-09
+
+#### Adicionado
+- **Navegador de diretórios:** no modal de criação/edição de Storage Location, o campo Diretório ganhou um botão de pesquisa (ícone de pasta). Ao clicar, abre um popup que lista os diretórios do servidor, permitindo navegar hierarquicamente e selecionar o caminho desejado sem precisar digitá-lo manualmente.
+- **Rota `GET /api/browse-dirs`:** nova rota protegida que aceita o parâmetro `path` e retorna os subdiretórios não-ocultos do caminho informado, junto ao caminho pai e ao caminho atual.
+
+---
+
+### [0.0.4] — Correções de bugs
 
 #### Corrigido
 - **Progresso do backup:** contador de arquivos processados ultrapassava o total porque `find -type f` contava apenas arquivos regulares, enquanto o `tar -v` emite uma linha por entrada (incluindo diretórios e symlinks). Corrigido removendo `-type f` do comando `find`.

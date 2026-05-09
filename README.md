@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.0.7-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.0.8-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,19 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.0.7**
+Versão atual: **0.0.8**
 
 ---
 
 ## � Changelog
+
+### [0.0.8] — 2026-05-09
+
+#### Corrigido
+- **Botões dos modais:** botões "Marcar todos" e "Confirmar seleção" do modal de seleção de volumes (e de todos os outros dialogs modais) agora usam o sistema de design `.btn` correto, com estilos primário e secundário consistentes com o restante da interface.
+- **Exclusão de arquivos de backup em disco:** ao excluir um profile, todos os arquivos `.tar.gz` de cada backup registrado no store são deletados do disco antes de remover o registro. Em seguida, a pasta do profile (incluindo arquivos `.snar` e outros arquivos não catalogados) também é removida. A deleção agora cobre backups feitos com diferentes diretórios (ex.: após troca de Storage Location).
+
+---
 
 ### [0.0.7] — 2026-05-09
 

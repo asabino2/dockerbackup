@@ -262,13 +262,34 @@ async function main() {
 
   app.delete('/api/profiles/:profileId', authMiddleware, async (request, response) => {
     try {
-      const profile = await store.getProfile(request.params.profileId);
-      await store.deleteProfile(request.params.profileId);
+      const profileId = request.params.profileId;
+      const profile = await store.getProfile(profileId);
+      const backups = await store.listBackups(profileId);
 
+      await store.deleteProfile(profileId);
+
+      // Deleta arquivos de backup gravados em disco usando os caminhos registrados
+      const slugifyLocal = (value) => value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'item';
+      const deletedProfileDirs = new Set();
+      for (const backup of backups) {
+        const backupRoot = backup.backupDir;
+        if (!backupRoot) continue;
+        for (const container of backup.containers || []) {
+          if (container.archiveRelativePath) {
+            await fs.rm(path.join(backupRoot, container.archiveRelativePath), { force: true });
+          }
+        }
+        if (profile?.name) {
+          deletedProfileDirs.add(path.join(backupRoot, slugifyLocal(profile.name)));
+        }
+      }
+
+      // Limpa a pasta do profile (cobre .snar e outros arquivos não registrados no store)
       if (profile?.backupDir) {
-        const slugify = (value) => value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'item';
-        const profileBackupDir = path.join(profile.backupDir, slugify(profile.name));
-        await fs.rm(profileBackupDir, { recursive: true, force: true });
+        deletedProfileDirs.add(path.join(profile.backupDir, slugifyLocal(profile.name)));
+      }
+      for (const dir of deletedProfileDirs) {
+        await fs.rm(dir, { recursive: true, force: true });
       }
 
       response.status(204).end();

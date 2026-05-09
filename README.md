@@ -22,7 +22,13 @@ Versão atual: **0.0.2**
 
 ---
 
-## � Changelog
+## � Changelog### [0.0.4] — Correções de bugs
+
+#### Corrigido
+- **Progresso do backup:** contador de arquivos processados ultrapassava o total porque `find -type f` contava apenas arquivos regulares, enquanto o `tar -v` emite uma linha por entrada (incluindo diretórios e symlinks). Corrigido removendo `-type f` do comando `find`.
+- **Aba Sobre — última versão:** a verificação da versão mais recente era feita no browser, falhando dentro do Docker por restrições de rede/CORS. A requisição foi movida para o backend, que lê o `package.json` diretamente do repositório via `raw.githubusercontent.com`.
+
+---
 ### [0.0.3] — Settings, About, i18n e autenticação
 
 #### Adicionado

@@ -408,7 +408,7 @@ class BackupService {
 
           if (backupScope === 'volumes') {
             pushLog('Contando arquivos para barra de progresso.', 'contando');
-            const countCmd = `set -eu; TOTAL=0; for p in ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; do if [ -e \"/$p\" ]; then C=$(find \"/$p\" -type f 2>/dev/null | wc -l | tr -d \" \" ); TOTAL=$((TOTAL + C)); fi; done; echo \"$TOTAL\"`;
+            const countCmd = `set -eu; TOTAL=0; for p in ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; do if [ -e \"/$p\" ]; then C=$(find \"/$p\" 2>/dev/null | wc -l | tr -d \" \" ); TOTAL=$((TOTAL + C)); fi; done; echo \"$TOTAL\"`;
             const output = await this.dockerService.runContainerCommand(containerId, countCmd);
             const parsed = Number(output.split(/\r?\n/).pop());
             fileTotal = Number.isFinite(parsed) ? parsed : 0;

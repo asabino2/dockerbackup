@@ -1416,42 +1416,30 @@ async function loadAboutView() {
   const updateStatus = document.querySelector('#aboutUpdateStatus');
   const updateBtn = document.querySelector('#aboutUpdateBtn');
 
+  if (latestVerEl) latestVerEl.textContent = t('about.checking');
+
   try {
     const about = await api('/api/about');
     const current = about.currentVersion || '—';
+    const latest = about.latestVersion || null;
+
     if (currentVerEl) currentVerEl.textContent = current;
+    if (latestVerEl) latestVerEl.textContent = latest || '—';
 
-    // Fetch latest from GitHub
-    if (latestVerEl) latestVerEl.textContent = t('about.checking');
-    try {
-      const ghRes = await fetch('https://api.github.com/repos/asabino2/dockerbackup/tags', {
-        headers: { Accept: 'application/vnd.github.v3+json' },
-      });
-      if (ghRes.ok) {
-        const tags = await ghRes.json();
-        const latestTag = tags[0]?.name?.replace(/^v/, '') || null;
-        if (latestVerEl) latestVerEl.textContent = latestTag || '—';
-
-        if (updateWrap) updateWrap.classList.remove('hidden');
-        if (latestTag && current !== latestTag) {
-          if (updateStatus) updateStatus.textContent = t('about.updateAvailable');
-          if (updateBtn) updateBtn.classList.remove('hidden');
-        } else {
-          if (updateStatus) updateStatus.textContent = t('about.upToDate');
-          if (updateBtn) updateBtn.classList.add('hidden');
-        }
-      } else {
-        if (latestVerEl) latestVerEl.textContent = '—';
-        if (updateStatus) updateStatus.textContent = t('about.checkError');
-        if (updateWrap) updateWrap.classList.remove('hidden');
-      }
-    } catch {
-      if (latestVerEl) latestVerEl.textContent = '—';
+    if (updateWrap) updateWrap.classList.remove('hidden');
+    if (latest && current !== latest) {
+      if (updateStatus) updateStatus.textContent = t('about.updateAvailable');
+      if (updateBtn) updateBtn.classList.remove('hidden');
+    } else if (latest) {
+      if (updateStatus) updateStatus.textContent = t('about.upToDate');
+      if (updateBtn) updateBtn.classList.add('hidden');
+    } else {
       if (updateStatus) updateStatus.textContent = t('about.checkError');
-      if (updateWrap) updateWrap.classList.remove('hidden');
+      if (updateBtn) updateBtn.classList.add('hidden');
     }
   } catch (error) {
     if (currentVerEl) currentVerEl.textContent = '—';
+    if (latestVerEl) latestVerEl.textContent = '—';
     showToast(error.message, true);
   }
 }

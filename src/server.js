@@ -138,7 +138,23 @@ async function main() {
       const pkgPath = path.join(process.cwd(), 'package.json');
       const pkgRaw = await fs.readFile(pkgPath, 'utf8');
       const pkg = JSON.parse(pkgRaw);
-      response.json({ currentVersion: pkg.version, name: pkg.name || 'dockerbackup' });
+      const currentVersion = pkg.version;
+
+      let latestVersion = null;
+      try {
+        const ghRes = await fetch('https://raw.githubusercontent.com/asabino2/dockerbackup/main/package.json', {
+          headers: { 'User-Agent': 'dockerbackup-app' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (ghRes.ok) {
+          const remotePkg = await ghRes.json();
+          if (remotePkg.version) latestVersion = String(remotePkg.version);
+        }
+      } catch {
+        // Non-fatal: latestVersion stays null
+      }
+
+      response.json({ currentVersion, latestVersion, name: pkg.name || 'dockerbackup' });
     } catch (error) {
       response.status(500).json({ error: error.message });
     }

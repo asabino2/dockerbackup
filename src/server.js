@@ -16,6 +16,21 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+function computeNextRunAt(scheduledAt, frequency) {
+  const base = new Date(scheduledAt);
+  if (frequency === 'once') return base;
+
+  const now = new Date();
+  let next = new Date(base);
+  while (next <= now) {
+    if (frequency === 'daily') next.setDate(next.getDate() + 1);
+    else if (frequency === 'weekly') next.setDate(next.getDate() + 7);
+    else if (frequency === 'monthly') next.setMonth(next.getMonth() + 1);
+    else break;
+  }
+  return next;
+}
+
 async function main() {
   await fs.mkdir(config.dataDir, { recursive: true });
 
@@ -565,6 +580,188 @@ async function main() {
       response.status(500).json({ error: error.message });
     }
   });
+
+  // ─── Schedule routes ──────────────────────────────────
+  app.get('/api/schedules', authMiddleware, async (_request, response) => {
+    try {
+      const schedules = await store.listSchedules();
+      response.json(schedules);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/schedules', authMiddleware, async (request, response) => {
+    try {
+      const payload = request.body || {};
+
+      if (!payload.profileId) {
+        return response.status(400).json({ error: 'Informe o profile.' });
+      }
+      if (!payload.scheduledAt) {
+        return response.status(400).json({ error: 'Informe a data/hora de início.' });
+      }
+      if (!['once', 'daily', 'weekly', 'monthly'].includes(payload.frequency)) {
+        return response.status(400).json({ error: 'Frequência inválida.' });
+      }
+      if (payload.backupMode && !['full', 'incremental'].includes(payload.backupMode)) {
+        return response.status(400).json({ error: 'Modo de backup inválido.' });
+      }
+
+      const profile = await store.getProfile(payload.profileId);
+      if (!profile) {
+        return response.status(400).json({ error: 'Profile não encontrado.' });
+      }
+
+      const scheduledAt = new Date(payload.scheduledAt).toISOString();
+      const nextRunAt = computeNextRunAt(scheduledAt, payload.frequency).toISOString();
+      const existing = payload.id ? await store.getSchedule(payload.id) : null;
+
+      const schedule = await store.saveSchedule({
+        id: payload.id,
+        createdAt: existing?.createdAt,
+        name: (payload.name || '').trim() || `${profile.name} — ${payload.frequency}`,
+        profileId: payload.profileId,
+        backupMode: payload.backupMode || 'full',
+        basedOnFullBackupId: payload.basedOnFullBackupId || null,
+        frequency: payload.frequency,
+        scheduledAt,
+        nextRunAt,
+        enabled: payload.enabled !== false,
+        lastRunAt: existing?.lastRunAt || null,
+        lastRunStatus: existing?.lastRunStatus || null,
+      });
+
+      response.status(payload.id ? 200 : 201).json(schedule);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch('/api/schedules/:id/toggle', authMiddleware, async (request, response) => {
+    try {
+      const schedule = await store.getSchedule(request.params.id);
+      if (!schedule) {
+        return response.status(404).json({ error: 'Agendamento não encontrado.' });
+      }
+      const enabled = request.body?.enabled !== undefined ? Boolean(request.body.enabled) : !schedule.enabled;
+      const updated = await store.saveSchedule({ ...schedule, enabled });
+      response.json(updated);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/schedules/:id', authMiddleware, async (request, response) => {
+    try {
+      await store.deleteSchedule(request.params.id);
+      response.status(204).end();
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Scheduler ────────────────────────────────────────
+  async function runScheduledJobs() {
+    let schedules;
+    try {
+      schedules = await store.listSchedules();
+    } catch {
+      return;
+    }
+
+    const now = new Date();
+
+    for (const schedule of schedules) {
+      if (!schedule.enabled || !schedule.nextRunAt) continue;
+
+      const nextRun = new Date(schedule.nextRunAt);
+      if (nextRun > now) continue;
+
+      const runningJob = [...runJobs.values()].find(
+        (job) => job.profileId === schedule.profileId && job.status === 'running',
+      );
+      if (runningJob) continue;
+
+      let resolvedFullBackupId = schedule.basedOnFullBackupId;
+      if (schedule.backupMode === 'incremental' && !resolvedFullBackupId) {
+        try {
+          const backups = await store.listBackups(schedule.profileId);
+          const fullBackups = backups
+            .filter((b) => b.mode === 'full' && (b.status === 'ok' || b.status === 'partial'))
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          if (!fullBackups.length) {
+            console.log(`[Scheduler] Pulando agendamento incremental "${schedule.name}" (${schedule.id}): nenhum backup full disponível`);
+            continue;
+          }
+          resolvedFullBackupId = fullBackups[0].id;
+        } catch {
+          continue;
+        }
+      }
+
+      const newNextRunAt = schedule.frequency === 'once'
+        ? null
+        : computeNextRunAt(schedule.scheduledAt, schedule.frequency).toISOString();
+      const newEnabled = schedule.frequency !== 'once';
+
+      try {
+        await store.saveSchedule({
+          ...schedule,
+          lastRunAt: now.toISOString(),
+          nextRunAt: newNextRunAt,
+          enabled: newEnabled,
+        });
+      } catch {
+        continue;
+      }
+
+      const runId = crypto.randomUUID();
+      runJobs.set(runId, {
+        id: runId,
+        profileId: schedule.profileId,
+        kind: 'backup',
+        scheduledBy: schedule.id,
+        status: 'running',
+        startedAt: now.toISOString(),
+        progress: null,
+        result: null,
+        error: null,
+      });
+
+      console.log(`[Scheduler] Executando agendamento "${schedule.name}" (${schedule.id})`);
+
+      void backupService.runProfile(schedule.profileId, {
+        mode: schedule.backupMode,
+        basedOnFullBackupId: resolvedFullBackupId,
+      }).then(async (backupRun) => {
+        const currentJob = runJobs.get(runId);
+        if (currentJob) {
+          currentJob.status = backupRun.status === 'ok' ? 'completed' : 'completed-with-errors';
+          currentJob.result = backupRun;
+          currentJob.finishedAt = new Date().toISOString();
+        }
+        const latestSchedule = await store.getSchedule(schedule.id);
+        if (latestSchedule) {
+          await store.saveSchedule({ ...latestSchedule, lastRunStatus: backupRun.status });
+        }
+      }).catch(async (err) => {
+        const currentJob = runJobs.get(runId);
+        if (currentJob) {
+          currentJob.status = 'error';
+          currentJob.error = err.message;
+          currentJob.finishedAt = new Date().toISOString();
+        }
+        const latestSchedule = await store.getSchedule(schedule.id);
+        if (latestSchedule) {
+          await store.saveSchedule({ ...latestSchedule, lastRunStatus: 'error' });
+        }
+      });
+    }
+  }
+
+  setInterval(() => runScheduledJobs().catch(console.error), 60_000);
+  setTimeout(() => runScheduledJobs().catch(console.error), 10_000);
 
   app.listen(config.port, () => {
     console.log(`Docker Backup app ouvindo na porta ${config.port}`);

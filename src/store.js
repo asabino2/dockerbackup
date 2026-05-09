@@ -23,6 +23,7 @@ class JsonStore {
     parsed.profiles ||= [];
     parsed.backups ||= [];
     parsed.storageLocations ||= [];
+    parsed.schedules ||= [];
     parsed.settings ||= {};
     return parsed;
   }
@@ -206,6 +207,55 @@ class JsonStore {
       return data;
     });
     return this.getSettings();
+  }
+
+  async listSchedules() {
+    const data = await this.read();
+    return data.schedules;
+  }
+
+  async getSchedule(scheduleId) {
+    const data = await this.read();
+    return data.schedules.find((s) => s.id === scheduleId) || null;
+  }
+
+  async saveSchedule(input) {
+    const now = new Date().toISOString();
+    const schedule = {
+      id: input.id || randomUUID(),
+      name: input.name || '',
+      profileId: input.profileId,
+      backupMode: input.backupMode || 'full',
+      basedOnFullBackupId: input.basedOnFullBackupId || null,
+      frequency: input.frequency || 'once',
+      scheduledAt: input.scheduledAt,
+      nextRunAt: input.nextRunAt !== undefined ? input.nextRunAt : (input.scheduledAt || null),
+      enabled: input.enabled !== undefined ? Boolean(input.enabled) : true,
+      lastRunAt: input.lastRunAt || null,
+      lastRunStatus: input.lastRunStatus || null,
+      createdAt: input.createdAt || now,
+      updatedAt: now,
+    };
+
+    await this.write((data) => {
+      data.schedules ||= [];
+      const index = data.schedules.findIndex((item) => item.id === schedule.id);
+      if (index >= 0) {
+        data.schedules[index] = schedule;
+      } else {
+        data.schedules.push(schedule);
+      }
+      return data;
+    });
+
+    return schedule;
+  }
+
+  async deleteSchedule(scheduleId) {
+    await this.write((data) => {
+      data.schedules = (data.schedules || []).filter((s) => s.id !== scheduleId);
+      return data;
+    });
   }
 
   async getLastContainerBackupTime(profileId, containerId) {

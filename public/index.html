@@ -52,6 +52,12 @@
             </button>
           </li>
           <li>
+            <button class="nav-item" data-view="schedules">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span>Agendamentos</span>
+            </button>
+          </li>
+          <li>
             <button class="nav-item" data-view="settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span data-i18n="nav.settings">Configurações</span>
@@ -203,6 +209,17 @@
             <h1 class="page-title">Backups</h1>
           </div>
           <div id="backupsViewList"></div>
+        </div>
+
+        <!-- VIEW: Schedules -->
+        <div id="view-schedules" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title">Agendamentos</h1>
+            <button id="openCreateScheduleModal" class="btn btn--primary">+ Novo Agendamento</button>
+          </div>
+          <div class="card">
+            <div id="schedulesList"></div>
+          </div>
         </div>
 
         <!-- VIEW: Storage Locations -->
@@ -482,6 +499,83 @@
           <button id="dirBrowserSelect" class="btn btn--primary" type="button">Selecionar este diretório</button>
           <button id="dirBrowserCancel" class="btn btn--secondary" type="button">Cancelar</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal: Criar/Editar Agendamento -->
+    <div id="scheduleFormModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-schedule-modal"></div>
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="scheduleModalTitle">
+        <div class="modal-header">
+          <h3 id="scheduleModalTitle">Novo Agendamento</h3>
+          <button id="scheduleModalClose" class="btn btn--ghost btn--sm" type="button">Fechar</button>
+        </div>
+        <form id="scheduleForm" class="profile-form">
+          <input type="hidden" id="scheduleId" />
+
+          <div class="form-field">
+            <label for="scheduleName">Nome do agendamento <small>(opcional)</small></label>
+            <input id="scheduleName" type="text" placeholder="Ex: Backup diário do banco" />
+          </div>
+
+          <div class="form-field">
+            <label for="scheduleProfileId">Profile de backup</label>
+            <select id="scheduleProfileId" required>
+              <option value="">Selecione um profile...</option>
+            </select>
+          </div>
+
+          <fieldset class="form-fieldset">
+            <legend>Tipo de backup</legend>
+            <div class="radio-grid">
+              <label class="radio-card">
+                <input type="radio" name="scheduleBackupMode" value="full" checked />
+                <span>Full</span>
+                <small>Backup completo de todos os volumes</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="scheduleBackupMode" value="incremental" />
+                <span>Incremental</span>
+                <small>Apenas alterações desde o último full</small>
+              </label>
+            </div>
+          </fieldset>
+
+          <div id="scheduleFullBackupField" class="form-field hidden">
+            <label for="scheduleBasedOnFullBackupId">Backup full base</label>
+            <select id="scheduleBasedOnFullBackupId">
+              <option value="">Auto (usar o mais recente disponível)</option>
+            </select>
+            <small class="form-hint">Para agendamentos recorrentes, recomenda-se &quot;Auto&quot;.</small>
+          </div>
+
+          <div class="form-field">
+            <label for="scheduleFrequency">Frequência</label>
+            <select id="scheduleFrequency" required>
+              <option value="once">Única vez</option>
+              <option value="daily" selected>Diária</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensal</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="scheduleDateTime">Data e hora do primeiro backup</label>
+            <input id="scheduleDateTime" type="datetime-local" required />
+          </div>
+
+          <div class="form-field">
+            <label class="toggle-label">
+              <input type="checkbox" id="scheduleEnabled" checked />
+              <span>Agendamento ativo</span>
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--primary" type="submit">Salvar agendamento</button>
+            <button class="btn btn--secondary" type="button" id="cancelScheduleForm">Cancelar</button>
+          </div>
+        </form>
       </div>
     </div>
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.0.9-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.0-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,12 +18,21 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.0.9**
+Versão atual: **0.1.0**
 
 ---
 
 ## � Changelog
+### [0.1.0] — 2026-05-09
 
+#### Adicionado
+- **Aba Agendamentos:** nova aba que permite criar e gerenciar agendamentos de backup, com suporte a execução única, diária, semanal e mensal.
+- **Formulário de agendamento:** o usuário informa o profile, o tipo de backup (full ou incremental), a frequência, a data/hora de início e se o agendamento está ativo. Para backups incrementais, é possível escolher o backup full base ou usar "Auto" (mais recente disponível).
+- **Scheduler no backend:** loop que roda a cada 60 segundos e dispara automaticamente os backups agendados no horário correto, calculando a próxima execução após cada run recorrente. Agendamentos do tipo "única vez" são desativados automaticamente após execução.
+- **API de agendamentos:** novas rotas `GET /api/schedules`, `POST /api/schedules`, `PATCH /api/schedules/:id/toggle` e `DELETE /api/schedules/:id`.
+- **Toggle ativo/inativo:** o agendamento pode ser pausado ou reativado diretamente na tabela sem precisar editar o formulário.
+
+---
 ### [0.0.9] — 2026-05-09
 
 #### Corrigido

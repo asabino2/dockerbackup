@@ -55,6 +55,7 @@ const state = {
   containers: [],
   profiles: [],
   storageLocations: [],
+  schedules: [],
   activeRuns: new Map(),
   volumeSelections: {},
 };
@@ -116,6 +117,9 @@ function navigateTo(viewName) {
   }
   if (viewName === 'backups') {
     renderBackupsView();
+  }
+  if (viewName === 'schedules') {
+    loadSchedules();
   }
   if (viewName === 'storage') {
     loadStorageLocations();
@@ -1385,6 +1389,282 @@ async function handleProfileAction(event) {
     button.disabled = false;
   }
 }
+
+// ─── Schedules ────────────────────────────────────────────
+const FREQUENCY_LABELS = {
+  once: 'Única vez',
+  daily: 'Diária',
+  weekly: 'Semanal',
+  monthly: 'Mensal',
+};
+
+async function loadSchedules() {
+  try {
+    state.schedules = await api('/api/schedules');
+    renderSchedulesList();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function renderSchedulesList() {
+  const list = document.querySelector('#schedulesList');
+  if (!list) return;
+
+  if (!state.schedules.length) {
+    list.innerHTML = '<p class="empty-state">Nenhum agendamento configurado. Crie um para automatizar seus backups.</p>';
+    return;
+  }
+
+  list.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Profile</th>
+          <th>Tipo</th>
+          <th>Frequência</th>
+          <th>Próxima Execução</th>
+          <th>Última Execução</th>
+          <th>Status</th>
+          <th>Ativo</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.schedules.map((schedule) => {
+          const profile = state.profiles.find((p) => p.id === schedule.profileId);
+          const profileName = profile ? profile.name : '—';
+          let nextRun = '—';
+          if (schedule.frequency === 'once' && schedule.lastRunAt && !schedule.nextRunAt) {
+            nextRun = 'Concluído';
+          } else if (!schedule.enabled) {
+            nextRun = 'Pausado';
+          } else if (schedule.nextRunAt) {
+            nextRun = new Date(schedule.nextRunAt).toLocaleString('pt-BR');
+          }
+          const lastRun = schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleString('pt-BR') : 'Nunca';
+          const statusBadge = schedule.lastRunStatus
+            ? `<span class="status-badge status-badge--${escapeHtml(schedule.lastRunStatus === 'ok' ? 'ok' : 'error')}">${escapeHtml(schedule.lastRunStatus)}</span>`
+            : '—';
+          return `
+            <tr>
+              <td><strong>${escapeHtml(schedule.name || '—')}</strong></td>
+              <td>${escapeHtml(profileName)}</td>
+              <td><span class="badge badge--${escapeHtml(schedule.backupMode || 'full')}">${escapeHtml(schedule.backupMode === 'incremental' ? 'Incremental' : 'Full')}</span></td>
+              <td>${escapeHtml(FREQUENCY_LABELS[schedule.frequency] || schedule.frequency)}</td>
+              <td>${escapeHtml(nextRun)}</td>
+              <td>${escapeHtml(lastRun)}</td>
+              <td>${statusBadge}</td>
+              <td style="text-align:center">
+                <input type="checkbox" class="schedule-toggle" data-schedule-id="${escapeHtml(schedule.id)}" ${schedule.enabled ? 'checked' : ''} title="${schedule.enabled ? 'Pausar' : 'Ativar'}" />
+              </td>
+              <td>
+                <button class="btn btn--secondary btn--sm" data-schedule-action="edit" data-schedule-id="${escapeHtml(schedule.id)}">Editar</button>
+                <button class="btn btn--danger btn--sm" data-schedule-action="delete" data-schedule-id="${escapeHtml(schedule.id)}">Excluir</button>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function openScheduleModal(schedule = null) {
+  const title = document.querySelector('#scheduleModalTitle');
+  const form = document.querySelector('#scheduleForm');
+  if (!form || !title) return;
+
+  form.reset();
+  document.querySelector('#scheduleId').value = '';
+  document.querySelector('#scheduleFullBackupField').classList.add('hidden');
+  document.querySelector('#scheduleBasedOnFullBackupId').innerHTML =
+    '<option value="">Auto (usar o mais recente disponível)</option>';
+
+  const profileSelect = document.querySelector('#scheduleProfileId');
+  profileSelect.innerHTML = '<option value="">Selecione um profile...</option>' +
+    state.profiles.map((p) =>
+      `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`
+    ).join('');
+
+  const defaultDate = new Date();
+  defaultDate.setHours(defaultDate.getHours() + 1, 0, 0, 0);
+  document.querySelector('#scheduleDateTime').value = defaultDate.toISOString().slice(0, 16);
+  document.querySelector('#scheduleEnabled').checked = true;
+
+  if (schedule) {
+    title.textContent = 'Editar Agendamento';
+    document.querySelector('#scheduleId').value = schedule.id;
+    document.querySelector('#scheduleName').value = schedule.name || '';
+    profileSelect.value = schedule.profileId;
+
+    const modeRadio = document.querySelector(`input[name="scheduleBackupMode"][value="${schedule.backupMode || 'full'}"]`);
+    if (modeRadio) modeRadio.checked = true;
+
+    document.querySelector('#scheduleFrequency').value = schedule.frequency || 'daily';
+    document.querySelector('#scheduleEnabled').checked = schedule.enabled !== false;
+
+    if (schedule.scheduledAt) {
+      document.querySelector('#scheduleDateTime').value = schedule.scheduledAt.slice(0, 16);
+    }
+
+    if (schedule.backupMode === 'incremental') {
+      document.querySelector('#scheduleFullBackupField').classList.remove('hidden');
+      await loadFullBackupsForSchedule(schedule.profileId, schedule.basedOnFullBackupId);
+    }
+  } else {
+    title.textContent = 'Novo Agendamento';
+  }
+
+  document.querySelector('#scheduleFormModal').classList.remove('hidden');
+  document.querySelector('#scheduleFormModal').setAttribute('aria-hidden', 'false');
+}
+
+function closeScheduleModal() {
+  document.querySelector('#scheduleFormModal').classList.add('hidden');
+  document.querySelector('#scheduleFormModal').setAttribute('aria-hidden', 'true');
+}
+
+async function loadFullBackupsForSchedule(profileId, selectedId = null) {
+  const select = document.querySelector('#scheduleBasedOnFullBackupId');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Auto (usar o mais recente disponível)</option>';
+  if (!profileId) return;
+
+  try {
+    const backups = await api(`/api/profiles/${profileId}/backups`);
+    const fullBackups = backups
+      .filter((b) => b.mode === 'full' && (b.status === 'ok' || b.status === 'partial'))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    for (const b of fullBackups) {
+      const label = `${new Date(b.createdAt).toLocaleString('pt-BR')} · ${(b.containers || []).map((c) => c.containerName).join(', ')} · ${b.status}`;
+      const option = document.createElement('option');
+      option.value = b.id;
+      option.textContent = label;
+      select.appendChild(option);
+    }
+
+    if (selectedId) select.value = selectedId;
+  } catch {
+    // Non-fatal
+  }
+}
+
+document.querySelector('#schedulesList')?.addEventListener('change', async (e) => {
+  const checkbox = e.target.closest('.schedule-toggle');
+  if (!checkbox) return;
+
+  const scheduleId = checkbox.dataset.scheduleId;
+  try {
+    await api(`/api/schedules/${scheduleId}/toggle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled: checkbox.checked }),
+    });
+    showToast(checkbox.checked ? 'Agendamento ativado.' : 'Agendamento pausado.');
+    await loadSchedules();
+  } catch (error) {
+    showToast(error.message, true);
+    checkbox.checked = !checkbox.checked;
+  }
+});
+
+document.querySelector('#schedulesList')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-schedule-action]');
+  if (!btn) return;
+
+  const { scheduleAction, scheduleId } = btn.dataset;
+  const schedule = state.schedules.find((s) => s.id === scheduleId);
+  if (!schedule) return;
+
+  if (scheduleAction === 'delete') {
+    if (!window.confirm(`Excluir o agendamento "${schedule.name || 'sem nome'}"?`)) return;
+    try {
+      await api(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+      await loadSchedules();
+      showToast('Agendamento removido.');
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  } else if (scheduleAction === 'edit') {
+    if (!state.profiles.length) await loadProfiles();
+    await openScheduleModal(schedule);
+  }
+});
+
+document.querySelector('#openCreateScheduleModal')?.addEventListener('click', async () => {
+  if (!state.profiles.length) await loadProfiles();
+  await openScheduleModal();
+});
+
+document.querySelector('#scheduleModalClose')?.addEventListener('click', closeScheduleModal);
+document.querySelector('#cancelScheduleForm')?.addEventListener('click', closeScheduleModal);
+document.querySelector('#scheduleFormModal')?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-schedule-modal"]')) closeScheduleModal();
+});
+
+document.querySelector('#scheduleProfileId')?.addEventListener('change', async (e) => {
+  const mode = document.querySelector('input[name="scheduleBackupMode"]:checked')?.value;
+  if (mode === 'incremental') {
+    await loadFullBackupsForSchedule(e.target.value, null);
+  }
+});
+
+document.querySelectorAll('input[name="scheduleBackupMode"]').forEach((radio) => {
+  radio.addEventListener('change', async (e) => {
+    const fullField = document.querySelector('#scheduleFullBackupField');
+    if (e.target.value === 'incremental') {
+      fullField.classList.remove('hidden');
+      const profileId = document.querySelector('#scheduleProfileId').value;
+      await loadFullBackupsForSchedule(profileId, null);
+    } else {
+      fullField.classList.add('hidden');
+    }
+  });
+});
+
+document.querySelector('#scheduleForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const profileId = document.querySelector('#scheduleProfileId').value;
+  if (!profileId) {
+    showToast('Selecione um profile.', true);
+    return;
+  }
+
+  const dateTimeValue = document.querySelector('#scheduleDateTime').value;
+  if (!dateTimeValue) {
+    showToast('Informe a data e hora de início.', true);
+    return;
+  }
+
+  const backupMode = document.querySelector('input[name="scheduleBackupMode"]:checked')?.value || 'full';
+  const basedOnFullBackupId = backupMode === 'incremental'
+    ? (document.querySelector('#scheduleBasedOnFullBackupId').value || null)
+    : null;
+
+  const payload = {
+    id: document.querySelector('#scheduleId').value || undefined,
+    name: document.querySelector('#scheduleName').value.trim(),
+    profileId,
+    backupMode,
+    basedOnFullBackupId,
+    frequency: document.querySelector('#scheduleFrequency').value,
+    scheduledAt: new Date(dateTimeValue).toISOString(),
+    enabled: document.querySelector('#scheduleEnabled').checked,
+  };
+
+  try {
+    await api('/api/schedules', { method: 'POST', body: JSON.stringify(payload) });
+    closeScheduleModal();
+    await loadSchedules();
+    showToast('Agendamento salvo.');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
 
 // ─── Login overlay ────────────────────────────────────────
 function showLoginOverlay() {

@@ -229,6 +229,23 @@
               </select>
             </div>
             <div class="settings-section">
+              <h2>Tema</h2>
+              <p>Personalize a aparência da interface</p>
+              <select id="settingsTheme" class="settings-select">
+                <option value="default">Padrão (Azul)</option>
+                <option value="dark">Escuro</option>
+                <option value="sunrise">Amanhecer</option>
+                <option value="forest">Floresta</option>
+                <option value="ocean">Oceano</option>
+                <option value="purple">Púrpura</option>
+                <option value="rose">Rosa</option>
+                <option value="orange">Laranja</option>
+                <option value="graphite">Grafite</option>
+                <option value="sapphire">Safira</option>
+                <option value="contrast">Alto Contraste</option>
+              </select>
+            </div>
+            <div class="settings-section">
               <h2 data-i18n="settings.auth">Controle de Acesso</h2>
               <label class="toggle-label">
                 <input type="checkbox" id="settingsRequireAuth" />
@@ -282,28 +299,7 @@
             <div class="about-changelog">
               <h3 data-i18n="about.changelog">Últimas alterações</h3>
               <div id="aboutChangelog" class="changelog-content">
-                <h4>0.0.4</h4>
-                <ul>
-                  <li>Correção: contador de arquivos no progresso do backup ultrapassava o total</li>
-                  <li>Correção: aba Sobre não exibia a última versão disponível</li>
-                </ul>
-                <h4>0.0.3</h4>
-                <ul>
-                  <li>Suporte a múltiplos idiomas (10 idiomas)</li>
-                  <li>Aba de configurações com controle de acesso (usuário e senha)</li>
-                  <li>Aba "Sobre" com verificação de versão via GitHub e atualização automática</li>
-                </ul>
-                <h4>0.0.2</h4>
-                <ul>
-                  <li>Adicionado gerenciamento de Storage Locations</li>
-                  <li>Backup incremental com seleção de full backup base</li>
-                  <li>Agrupamento visual de backups incrementais sob o full</li>
-                  <li>Removidas abas Servers e Naming Rules</li>
-                </ul>
-                <h4>0.0.1</h4>
-                <ul>
-                  <li>Versão inicial: backup e restore de volumes Docker</li>
-                </ul>
+                <p class="changelog-loading">Carregando changelog...</p>
               </div>
             </div>
           </div>

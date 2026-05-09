@@ -16,6 +16,30 @@ function applyTranslations() {
   });
 }
 
+// ─── Themes ───────────────────────────────────────────────
+const VALID_THEMES = new Set([
+  'default','dark','sunrise','forest','ocean','purple','rose','orange','graphite','sapphire','contrast'
+]);
+
+function applyTheme(theme) {
+  const safe = VALID_THEMES.has(theme) ? theme : 'default';
+  if (safe === 'default') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', safe);
+  }
+  localStorage.setItem('theme', safe);
+  const sel = document.querySelector('#settingsTheme');
+  if (sel) sel.value = safe;
+}
+
+// Apply saved theme immediately
+applyTheme(localStorage.getItem('theme') || 'default');
+
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'settingsTheme') applyTheme(e.target.value);
+});
+
 // ─── Auth ──────────────────────────────────────────────────
 let authToken = localStorage.getItem('authToken') || null;
 
@@ -688,9 +712,9 @@ function backupButtons(profile) {
         </select>
       </label>
       <div class="card-actions">
-        <button data-action="run" data-profile-id="${escapeHtml(profile.id)}" class="primary-button small" ${isRunning ? 'disabled' : ''}>${isRunning ? 'Executando...' : 'Run'}</button>
-        <button data-action="edit" data-profile-id="${escapeHtml(profile.id)}" class="secondary-button small">Editar</button>
-        <button data-action="delete" data-profile-id="${escapeHtml(profile.id)}" class="ghost-button small">Excluir</button>
+        <button data-action="run" data-profile-id="${escapeHtml(profile.id)}" class="btn btn--primary btn--sm" ${isRunning ? 'disabled' : ''}>${isRunning ? 'Executando...' : 'Run'}</button>
+        <button data-action="edit" data-profile-id="${escapeHtml(profile.id)}" class="btn btn--secondary btn--sm">Editar</button>
+        <button data-action="delete" data-profile-id="${escapeHtml(profile.id)}" class="btn btn--danger btn--sm">Excluir</button>
       </div>
     </div>
   `;
@@ -1431,6 +1455,8 @@ function buildLanguageSelect() {
 
 async function loadSettingsView() {
   buildLanguageSelect();
+  const themeSelect = document.querySelector('#settingsTheme');
+  if (themeSelect) themeSelect.value = localStorage.getItem('theme') || 'default';
   try {
     const settings = await api('/api/settings');
     const select = document.querySelector('#settingsLanguage');
@@ -1471,17 +1497,66 @@ document.querySelector('#saveSettingsBtn')?.addEventListener('click', async () =
 });
 
 // ─── About ────────────────────────────────────────────────
+function markdownInline(raw) {
+  return raw
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function parseChangelogSection(markdown) {
+  // Extract from ## Changelog (or ## 🗂 Changelog etc.) to next ##
+  const start = markdown.search(/^##\s+[^\n]*[Cc]hangelog/m);
+  if (start === -1) return null;
+  const rest = markdown.slice(start);
+  const nextSection = rest.slice(1).search(/^## /m);
+  const section = nextSection === -1 ? rest : rest.slice(0, nextSection + 1);
+
+  const lines = section.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (const line of lines) {
+    const h3 = line.match(/^###\s+(.+)/);
+    const h4 = line.match(/^####\s+(.+)/);
+    const li = line.match(/^-\s+(.+)/);
+
+    if (h3) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h4>${markdownInline(h3[1].replace(/\[([^\]]+)\]/, '$1'))}</h4>`;
+    } else if (h4) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h5 class="changelog-section">${markdownInline(h4[1])}</h5>`;
+    } else if (li) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${markdownInline(li[1])}</li>`;
+    } else if (line.startsWith('---') || line.startsWith('## ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+    }
+  }
+  if (inList) html += '</ul>';
+  return html || null;
+}
+
 async function loadAboutView() {
   const currentVerEl = document.querySelector('#aboutCurrentVersion');
   const latestVerEl = document.querySelector('#aboutLatestVersion');
   const updateWrap = document.querySelector('#aboutUpdateWrap');
   const updateStatus = document.querySelector('#aboutUpdateStatus');
   const updateBtn = document.querySelector('#aboutUpdateBtn');
+  const changelogEl = document.querySelector('#aboutChangelog');
 
   if (latestVerEl) latestVerEl.textContent = t('about.checking');
 
-  try {
-    const about = await api('/api/about');
+  // Fetch version info and changelog in parallel
+  const [aboutResult, changelogResult] = await Promise.allSettled([
+    api('/api/about'),
+    fetch('https://raw.githubusercontent.com/asabino2/dockerbackup/main/README.md').then((r) => r.text()),
+  ]);
+
+  // Version info
+  if (aboutResult.status === 'fulfilled') {
+    const about = aboutResult.value;
     const current = about.currentVersion || '—';
     const latest = about.latestVersion || null;
 
@@ -1499,10 +1574,20 @@ async function loadAboutView() {
       if (updateStatus) updateStatus.textContent = t('about.checkError');
       if (updateBtn) updateBtn.classList.add('hidden');
     }
-  } catch (error) {
+  } else {
     if (currentVerEl) currentVerEl.textContent = '—';
     if (latestVerEl) latestVerEl.textContent = '—';
-    showToast(error.message, true);
+    showToast(aboutResult.reason?.message || 'Erro ao buscar versão', true);
+  }
+
+  // Changelog from GitHub README
+  if (changelogEl) {
+    if (changelogResult.status === 'fulfilled') {
+      const html = parseChangelogSection(changelogResult.value);
+      changelogEl.innerHTML = html || '<p class="changelog-loading">Changelog não encontrado.</p>';
+    } else {
+      changelogEl.innerHTML = '<p class="changelog-loading">Não foi possível carregar o changelog.</p>';
+    }
   }
 }
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.0.5-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.0.6-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,23 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.0.5**
+Versão atual: **0.0.6**
 
 ---
 
 ## � Changelog
+
+### [0.0.6] — 2026-05-09
+
+#### Adicionado
+- **Seletor de temas:** nova seção na aba Configurações com 11 temas visuais (Padrão, Escuro, Amanhecer, Floresta, Oceano, Púrpura, Rosa, Laranja, Grafite, Safira, Alto Contraste). O tema selecionado é aplicado imediatamente e salvo no navegador.
+- **Changelog dinâmico:** a aba Sobre agora busca e exibe o changelog diretamente do `README.md` do GitHub, sem necessidade de atualização manual na interface.
+
+#### Corrigido
+- **Botões Run/Editar/Excluir:** estilizados usando o sistema de design existente (`.btn`). Run ficou azul/primário, Editar em cinza/secundário e Excluir em vermelho com borda.
+- **`docker-compose.yml`:** `restart: unless-stopped` descomentado para garantir que o container reinicie automaticamente após uma atualização via botão da aba Sobre.
+
+---
 
 ### [0.0.5] — 2026-05-09
 

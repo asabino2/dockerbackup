@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.0.8-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.0.9-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,21 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.0.8**
+Versão atual: **0.0.9**
 
 ---
 
 ## � Changelog
+
+### [0.0.9] — 2026-05-09
+
+#### Corrigido
+- **Exclusão em cascata de Storage Location não removia arquivos do disco:** ao excluir um Storage Location (que por consequência exclui os profiles vinculados), os arquivos `.tar.gz` e a pasta de cada profile agora são deletados corretamente do disco, da mesma forma que acontece ao excluir um profile individualmente.
+
+#### Adicionado
+- **Crédito do desenvolvedor na aba Sobre:** exibe o texto "Desenvolvido por Alexander Sabino em 2026" ao final da aba Sobre.
+
+---
 
 ### [0.0.8] — 2026-05-09
 

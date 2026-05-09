@@ -1203,6 +1203,12 @@ button, input, select {
   color: var(--text-muted);
   font-style: italic;
 }
+.about-author {
+  margin-top: 1.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+}
 
 /* --- Modal ----------------------------------------------- */
 .modal {

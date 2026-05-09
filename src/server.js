@@ -506,7 +506,36 @@ async function main() {
 
   app.delete('/api/storage-locations/:id', authMiddleware, async (request, response) => {
     try {
-      await store.deleteStorageLocation(request.params.id);
+      const locationId = request.params.id;
+      const impact = await store.storageLocationImpact(locationId);
+
+      const slugifyLocal = (value) => value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'item';
+
+      // Deleta arquivos em disco de cada profile afetado antes de remover do store
+      for (const profile of impact.profiles) {
+        const backups = await store.listBackups(profile.id);
+        const deletedDirs = new Set();
+        for (const backup of backups) {
+          const backupRoot = backup.backupDir;
+          if (!backupRoot) continue;
+          for (const container of backup.containers || []) {
+            if (container.archiveRelativePath) {
+              await fs.rm(path.join(backupRoot, container.archiveRelativePath), { force: true });
+            }
+          }
+          if (profile.name) {
+            deletedDirs.add(path.join(backupRoot, slugifyLocal(profile.name)));
+          }
+        }
+        if (profile.backupDir) {
+          deletedDirs.add(path.join(profile.backupDir, slugifyLocal(profile.name)));
+        }
+        for (const dir of deletedDirs) {
+          await fs.rm(dir, { recursive: true, force: true });
+        }
+      }
+
+      await store.deleteStorageLocation(locationId);
       response.status(204).end();
     } catch (error) {
       response.status(500).json({ error: error.message });

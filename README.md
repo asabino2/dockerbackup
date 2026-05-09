@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.3-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.4-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,18 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.1.3**
+Versão atual: **0.1.4**
 
 ---
 
 ## � Changelog
+### [0.1.4] — 2026-05-09
+
+#### Corrigido
+- **Restore incremental não apagava arquivos deletados entre backups:** `tar -xzf` sem `--listed-incremental` não honra informações de deleção embutidas no archive incremental. Corrigido: archives com `mode === 'incremental'` agora são extraídos com `tar --listed-incremental=/dev/null -xzvf`, que instrui o tar a ler o snapshot embutido e remover arquivos que foram deletados entre o backup anterior e o incremental. O archive full continua usando extração simples.
+- **Estatísticas do restore sempre zeradas:** o objeto `restoreStats` era criado mas nunca preenchido. Corrigido: o comando `tar` passou a usar o flag `-v` (verbose), que imprime cada arquivo extraído no stdout; o callback `onOutput` agora recebe o parâmetro `streamName` e incrementa `restoreStats.created` a cada linha do stdout, resultando no total real de arquivos restaurados no toast de conclusão.
+- **Path não-nativo (fora do Docker) referenciava `restorePaths` indefinido:** a variável `restorePaths` era usada no filtro de mounts do path não-nativo sem ter sido declarada nesse escopo. Corrigido: o path não-nativo agora computa `restorePathsNonNative` a partir de `chain[0].backupPaths` (igual à lógica do path nativo).
+
 ### [0.1.3] — 2026-05-09
 
 #### Corrigido

@@ -935,10 +935,16 @@ class BackupService {
           // permissão/ownership) ao extrair em volumes. Com set -e/&&, o incremental
           // nunca seria aplicado porque o full aborta a cadeia. Tratar código 1 como
           // sucesso e apenas falhar com código >= 2.
+          //
+          // Para archives incrementais: --listed-incremental=/dev/null instrui o tar a
+          // ler o snapshot embutido no archive e APAGAR arquivos que foram removidos
+          // entre o backup anterior e este incremental (comportamento delta correto).
+          // Para o archive full: extração simples, sem remoção de arquivos existentes.
           for (const [index, entry] of chain.entries()) {
             const archivePath = `${helperBackupRoot}/${entry.archiveRelativePath}`;
+            const tarIncrFlag = entry.mode === 'incremental' ? '--listed-incremental=/dev/null ' : '';
             helperCmds.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
-            helperCmds.push(`tar -xzf ${shellQuote(archivePath)} -C /; RC=$?; [ $RC -le 1 ] || exit $RC`);
+            helperCmds.push(`tar ${tarIncrFlag}-xzvf ${shellQuote(archivePath)} -C /; RC=$?; [ $RC -le 1 ] || exit $RC`);
           }
 
           // Emite progresso inicial (o helper roda tudo de uma vez, sem granularidade por arquivo).
@@ -951,9 +957,16 @@ class BackupService {
           await this.dockerService.runHelper({
             binds: helperBinds,
             cmd: helperCmds.join('\n'),
-            onOutput: (line) => {
+            onOutput: (line, streamName) => {
               const normalized = String(line || '').trim();
-              if (normalized) pushLog(normalized, 'restaurando');
+              if (!normalized) return;
+              if (streamName === 'stdout') {
+                // Linha do tar -v: cada arquivo extraído (não logar — podem ser muitos)
+                restoreStats.created++;
+              } else {
+                // Linha do tar (warnings) ou echo de progresso (stderr)
+                pushLog(normalized, 'restaurando');
+              }
             },
           });
 
@@ -1013,11 +1026,16 @@ class BackupService {
     const binds = [`${backupRoot}:/backuproot:ro`];
     const helperCmds = [];
 
+    // Limitar restore aos volumes que estavam ativos no backup (mesma lógica do path nativo).
+    const restorePathsNonNative = (chain[0]?.backupPaths && chain[0].backupPaths.length)
+      ? chain[0].backupPaths
+      : currentMounts.map((mount) => mount.destination);
+
     // Montar cada volume/bind no seu path real (igual ao path nativo).
     // Archives criados pelo helper já têm entries com paths reais (a0/..., var/lib/gitea/...),
     // então extrair com -C / coloca os arquivos nos volumes montados corretamente.
     for (const mount of currentMounts) {
-      if (restorePaths && restorePaths.length > 0 && !restorePaths.includes(mount.destination)) continue;
+      if (!restorePathsNonNative.includes(mount.destination)) continue;
       binds.push(`${getMountBindingSource(mount)}:${mount.destination}`);
       helperCmds.push(
         `find ${shellQuote(mount.destination)} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null || true`
@@ -1026,9 +1044,13 @@ class BackupService {
 
     // Extração de cada archive sem set -e/&&: tar frequentemente retorna código 1
     // (avisos de permissão/ownership) — aceitar código 1 como sucesso, falhar apenas em >= 2.
+    // Para archives incrementais: --listed-incremental=/dev/null instrui o tar a ler o
+    // snapshot embutido e apagar arquivos removidos entre backups (comportamento delta correto).
+    const restoreStats = { deleted: 0, created: 0, modified: 0 };
     for (const [index, entry] of chain.entries()) {
+      const tarIncrFlag = entry.mode === 'incremental' ? '--listed-incremental=/dev/null ' : '';
       helperCmds.push(`echo "[${index + 1}/${chain.length}] Aplicando: ${entry.archiveRelativePath}" 1>&2`);
-      helperCmds.push(`tar -xzf ${shellQuote(`/backuproot/${entry.archiveRelativePath}`)} -C /; RC=$?; [ $RC -le 1 ] || exit $RC`);
+      helperCmds.push(`tar ${tarIncrFlag}-xzvf ${shellQuote(`/backuproot/${entry.archiveRelativePath}`)} -C /; RC=$?; [ $RC -le 1 ] || exit $RC`);
     }
 
     try {
@@ -1039,9 +1061,14 @@ class BackupService {
       await this.dockerService.runHelper({
         binds,
         cmd: helperCmds.join('\n'),
-        onOutput: (line) => {
+        onOutput: (line, streamName) => {
           const normalized = String(line || '').trim();
-          if (normalized) pushLog(normalized, 'restaurando');
+          if (!normalized) return;
+          if (streamName === 'stdout') {
+            restoreStats.created++;
+          } else {
+            pushLog(normalized, 'restaurando');
+          }
         },
       });
     } finally {
@@ -1050,7 +1077,7 @@ class BackupService {
       }
     }
 
-    return { stats: null };
+    return { stats: restoreStats };
   }
 }
 

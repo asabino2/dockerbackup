@@ -166,6 +166,7 @@ class BackupService {
       mode: effectiveMode,
       backupScope,
       backupDir: profile.backupDir,
+      basedOnFullBackupId: options.basedOnFullBackupId || null,
       status: 'ok',
       containers: [],
     };

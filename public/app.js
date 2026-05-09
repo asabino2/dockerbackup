@@ -1,6 +1,36 @@
+// ─── i18n ─────────────────────────────────────────────────
+const TRANSLATIONS = window.TRANSLATIONS || {};
+const LOCALE_NAMES = window.LOCALE_NAMES || {};
+
+let currentLang = localStorage.getItem('lang') || 'pt-BR';
+
+function t(key) {
+  return (TRANSLATIONS[currentLang] || TRANSLATIONS['pt-BR'] || {})[key] || key;
+}
+
+function applyTranslations() {
+  document.documentElement.lang = currentLang;
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const key = el.dataset.i18n;
+    el.textContent = t(key);
+  });
+}
+
+// ─── Auth ──────────────────────────────────────────────────
+let authToken = localStorage.getItem('authToken') || null;
+
+function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) {
+    headers['x-auth-token'] = authToken;
+  }
+  return headers;
+}
+
 const state = {
   containers: [],
   profiles: [],
+  storageLocations: [],
   activeRuns: new Map(),
   volumeSelections: {},
 };
@@ -11,7 +41,7 @@ const elements = {
   profileForm: document.querySelector('#profileForm'),
   profileId: document.querySelector('#profileId'),
   profileName: document.querySelector('#profileName'),
-  backupDir: document.querySelector('#backupDir'),
+  storageLocationSelect: document.querySelector('#storageLocationId'),
   containerOptions: document.querySelector('#containerOptions'),
   profilesList: document.querySelector('#profilesList'),
   toast: document.querySelector('#toast'),
@@ -29,6 +59,16 @@ const elements = {
   volumePickerConfirm: document.querySelector('#volumePickerConfirm'),
   volumePickerClose: document.querySelector('#volumePickerClose'),
   volumePickerSelectAll: document.querySelector('#volumePickerSelectAll'),
+  fullBackupPickerModal: document.querySelector('#fullBackupPickerModal'),
+  fullBackupPickerOptions: document.querySelector('#fullBackupPickerOptions'),
+  fullBackupPickerConfirm: document.querySelector('#fullBackupPickerConfirm'),
+  fullBackupPickerClose: document.querySelector('#fullBackupPickerClose'),
+  storageLocationFormModal: document.querySelector('#storageLocationFormModal'),
+  storageLocationForm: document.querySelector('#storageLocationForm'),
+  storageLocationName: document.querySelector('#storageLocationName'),
+  storageLocationDir: document.querySelector('#storageLocationDir'),
+  storageLocationIdField: document.querySelector('#storageFormId'),
+  storageLocationsList: document.querySelector('#storageLocationsList'),
 };
 
 // ─── View navigation ──────────────────────────────────────
@@ -47,14 +87,20 @@ function navigateTo(viewName) {
     loadProfiles();
     loadContainers();
   }
-  if (viewName === 'servers') {
-    renderServers();
-  }
   if (viewName === 'runs') {
     loadAllRuns();
   }
   if (viewName === 'backups') {
     renderBackupsView();
+  }
+  if (viewName === 'storage') {
+    loadStorageLocations();
+  }
+  if (viewName === 'settings') {
+    loadSettingsView();
+  }
+  if (viewName === 'about') {
+    loadAboutView();
   }
 }
 
@@ -66,7 +112,6 @@ document.querySelector('.sidebar').addEventListener('click', (e) => {
 });
 
 document.querySelector('#createProfileBtn')?.addEventListener('click', () => navigateTo('profiles'));
-document.querySelector('#refreshServers')?.addEventListener('click', () => renderServers());
 
 // ─── Profile form modal ───────────────────────────────────
 function openProfileModal(title = 'Novo Profile') {
@@ -82,6 +127,7 @@ function closeProfileModal() {
 
 document.querySelector('#openCreateProfileModal')?.addEventListener('click', () => {
   resetForm();
+  populateStorageLocationDropdown();
   openProfileModal('Novo Profile');
 });
 
@@ -93,20 +139,185 @@ elements.profileFormModal?.addEventListener('click', (e) => {
   }
 });
 
-function renderServers() {
-  const list = document.querySelector('#serversList');
+// ─── Storage Locations ────────────────────────────────────
+async function loadStorageLocations() {
+  state.storageLocations = await api('/api/storage-locations');
+  renderStorageLocationsList();
+  populateStorageLocationDropdown();
+}
+
+function renderStorageLocationsList() {
+  const list = elements.storageLocationsList;
   if (!list) return;
-  if (!state.containers.length) {
-    list.innerHTML = '<p class="empty-state">Nenhum servidor encontrado.</p>';
+
+  if (!state.storageLocations.length) {
+    list.innerHTML = '<p class="empty-state">Nenhum local de armazenamento configurado. Crie um para poder configurar backup profiles.</p>';
     return;
   }
-  list.innerHTML = state.containers.map((c) => `
-    <div class="server-card">
-      <h3>${escapeHtml(c.name)}</h3>
-      <small>${escapeHtml(c.image)}</small>
-      <small>${escapeHtml(c.status)} · <span class="state ${escapeHtml(c.state)}">${escapeHtml(c.state)}</span></small>
-    </div>
+
+  list.innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Nome</th><th>Diretório</th><th>Ações</th></tr></thead>
+      <tbody>
+        ${state.storageLocations.map((loc) => `
+          <tr>
+            <td><strong>${escapeHtml(loc.name)}</strong></td>
+            <td><code>${escapeHtml(loc.directory)}</code></td>
+            <td>
+              <button class="btn btn--ghost btn--sm" data-storage-action="delete" data-storage-id="${escapeHtml(loc.id)}">Excluir</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function populateStorageLocationDropdown() {
+  const select = elements.storageLocationSelect;
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">Selecione um local...</option>' +
+    state.storageLocations.map((loc) =>
+      `<option value="${escapeHtml(loc.id)}">${escapeHtml(loc.name)} — ${escapeHtml(loc.directory)}</option>`
+    ).join('');
+  if (current) select.value = current;
+}
+
+function openStorageModal() {
+  document.querySelector('#storageModalTitle').textContent = 'Novo Local de Armazenamento';
+  elements.storageLocationForm.reset();
+  elements.storageLocationIdField.value = '';
+  elements.storageLocationFormModal.classList.remove('hidden');
+  elements.storageLocationFormModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeStorageModal() {
+  elements.storageLocationFormModal.classList.add('hidden');
+  elements.storageLocationFormModal.setAttribute('aria-hidden', 'true');
+}
+
+async function saveStorageLocation(event) {
+  event.preventDefault();
+  const payload = {
+    id: elements.storageLocationIdField.value || undefined,
+    name: elements.storageLocationName.value.trim(),
+    directory: elements.storageLocationDir.value.trim(),
+  };
+
+  try {
+    await api('/api/storage-locations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    closeStorageModal();
+    await loadStorageLocations();
+    showToast('Local de armazenamento salvo.');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+document.querySelector('#openCreateStorageModal')?.addEventListener('click', openStorageModal);
+document.querySelector('#cancelStorageForm')?.addEventListener('click', closeStorageModal);
+document.querySelector('#storageModalClose')?.addEventListener('click', closeStorageModal);
+elements.storageLocationFormModal?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-storage-modal"]')) closeStorageModal();
+});
+elements.storageLocationForm?.addEventListener('submit', saveStorageLocation);
+elements.storageLocationsList?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-storage-action="delete"]');
+  if (!btn) return;
+  const id = btn.dataset.storageId;
+  if (!window.confirm('Excluir este local de armazenamento?')) return;
+  try {
+    await api(`/api/storage-locations/${id}`, { method: 'DELETE' });
+    await loadStorageLocations();
+    showToast('Local removido.');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+// ─── Full Backup Picker Modal ─────────────────────────────
+function askFullBackupSelection(fullBackups, profileName) {
+  elements.fullBackupPickerOptions.innerHTML = fullBackups.map((b) => `
+    <label class="modal-option">
+      <input type="radio" name="fullBackupChoice" value="${escapeHtml(b.id)}" />
+      <span>
+        <strong>${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</strong>
+        <small>${escapeHtml((b.containers || []).map((c) => c.containerName).join(', '))} · ${escapeHtml(b.status)}</small>
+      </span>
+    </label>
   `).join('');
+
+  // Pre-select the most recent one
+  const firstRadio = elements.fullBackupPickerOptions.querySelector('input[name="fullBackupChoice"]');
+  if (firstRadio) firstRadio.checked = true;
+
+  elements.fullBackupPickerModal.classList.remove('hidden');
+  elements.fullBackupPickerModal.setAttribute('aria-hidden', 'false');
+
+  return new Promise((resolve) => {
+    const closeModal = () => {
+      elements.fullBackupPickerModal.classList.add('hidden');
+      elements.fullBackupPickerModal.setAttribute('aria-hidden', 'true');
+      elements.fullBackupPickerOptions.innerHTML = '';
+    };
+
+    const cleanup = () => {
+      elements.fullBackupPickerConfirm.removeEventListener('click', onConfirm);
+      elements.fullBackupPickerClose.removeEventListener('click', onCancel);
+      elements.fullBackupPickerModal.removeEventListener('click', onBackdropClick);
+    };
+
+    const onConfirm = () => {
+      const selected = elements.fullBackupPickerOptions.querySelector('input[name="fullBackupChoice"]:checked');
+      if (!selected) {
+        showToast('Selecione um backup full.', true);
+        return;
+      }
+      cleanup();
+      closeModal();
+      resolve(selected.value);
+    };
+
+    const onCancel = () => {
+      cleanup();
+      closeModal();
+      resolve(null);
+    };
+
+    const onBackdropClick = (event) => {
+      if (event.target.closest('[data-action="close-full-backup-picker"]')) onCancel();
+    };
+
+    elements.fullBackupPickerConfirm.addEventListener('click', onConfirm);
+    elements.fullBackupPickerClose.addEventListener('click', onCancel);
+    elements.fullBackupPickerModal.addEventListener('click', onBackdropClick);
+  });
+}
+
+async function resolveFullBackupId(profileId, profile) {
+  const backups = await api(`/api/profiles/${profileId}/backups`);
+  const fullBackups = backups
+    .filter((b) => b.mode === 'full' && (b.status === 'ok' || b.status === 'partial'))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (!fullBackups.length) {
+    showToast('Não há backup full disponível. Execute um backup full primeiro.', true);
+    return undefined; // signal: blocked
+  }
+
+  if (fullBackups.length === 1) {
+    return fullBackups[0].id;
+  }
+
+  return askFullBackupSelection(fullBackups, profile.name);
+}
+
+function renderServers() {
+  // Servers view was removed
 }
 
 async function renderBackupsView() {
@@ -120,40 +331,81 @@ async function renderBackupsView() {
     const backups = await api(`/api/profiles/${p.id}/backups`);
     return { profile: p, backups };
   }));
-  host.innerHTML = rows.map(({ profile, backups }) => `
-    <div class="card">
-      <div class="card-toolbar">
-        <h2 class="card-title">${escapeHtml(profile.name)}</h2>
-        <span class="badge">${escapeHtml(String(backups.length))} backup(s)</span>
+
+  host.innerHTML = rows.map(({ profile, backups }) => {
+    const groups = groupBackupsByFull(backups);
+    const totalBackups = backups.length;
+
+    const groupsHtml = groups.length
+      ? groups.map(({ full, incrementals }) => {
+          const allInGroup = [full, ...incrementals];
+          return `
+            <tbody>
+              ${renderBackupRow(full, profile, true)}
+              ${incrementals.map((inc) => renderBackupRow(inc, profile, false)).join('')}
+            </tbody>
+          `;
+        }).join('')
+      : `<tbody><tr><td colspan="5" class="empty-row">Nenhum backup realizado.</td></tr></tbody>`;
+
+    return `
+      <div class="card">
+        <div class="card-toolbar">
+          <h2 class="card-title">${escapeHtml(profile.name)}</h2>
+          <span class="badge">${escapeHtml(String(totalBackups))} backup(s)</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Data</th><th>Tipo</th><th>Status</th><th>Containers</th><th>Ações</th></tr></thead>
+            ${groupsHtml}
+          </table>
+        </div>
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>Data</th><th>Mode</th><th>Status</th><th>Containers</th><th>Actions</th></tr></thead>
-          <tbody>
-            ${backups.length ? backups.map((b) => {
-              const hasRestorable = (b.containers || []).some((c) => c.status === 'ok');
-              return `
-              <tr>
-                <td>${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</td>
-                <td>${escapeHtml(b.mode || '—')}</td>
-                <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
-                <td>${escapeHtml((b.containers || []).map((c) => c.containerName).join(', '))}</td>
-                <td>
-                  <button
-                    class="btn btn--secondary btn--sm"
-                    data-action="restore"
-                    data-profile-id="${escapeHtml(profile.id)}"
-                    data-backup-id="${escapeHtml(b.id)}"
-                    ${hasRestorable ? '' : 'disabled title="Nenhum container restaurável"'}
-                  >Restore</button>
-                </td>
-              </tr>
-            `}).join('') : '<tr><td colspan="5" class="empty-row">Nenhum backup realizado.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+}
+
+function renderBackupRow(b, profile, isFull) {
+  const hasRestorable = (b.containers || []).some((c) => c.status === 'ok');
+  const indent = isFull ? '' : '&nbsp;&nbsp;&nbsp;↳&nbsp;';
+  const modeLabel = isFull ? 'Full' : 'Incremental';
+  return `
+    <tr${isFull ? '' : ' class="incremental-row"'}>
+      <td>${indent}${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</td>
+      <td><span class="badge badge--${escapeHtml(b.mode || 'full')}">${escapeHtml(modeLabel)}</span></td>
+      <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
+      <td>${escapeHtml((b.containers || []).map((c) => c.containerName).join(', '))}</td>
+      <td>
+        <button
+          class="btn btn--secondary btn--sm"
+          data-action="restore"
+          data-profile-id="${escapeHtml(profile.id)}"
+          data-backup-id="${escapeHtml(b.id)}"
+          ${hasRestorable ? '' : 'disabled title="Nenhum container restaurável"'}
+        >Restore</button>
+      </td>
+    </tr>
+  `;
+}
+
+function groupBackupsByFull(backups) {
+  const chronological = [...backups].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const groupMap = new Map();
+  let currentFullId = null;
+
+  for (const backup of chronological) {
+    if (backup.mode === 'full') {
+      currentFullId = backup.id;
+      groupMap.set(currentFullId, { full: backup, incrementals: [] });
+    } else if (backup.mode === 'incremental') {
+      const targetId = backup.basedOnFullBackupId || currentFullId;
+      if (targetId && groupMap.has(targetId)) {
+        groupMap.get(targetId).incrementals.push(backup);
+      }
+    }
+  }
+
+  return [...groupMap.values()].sort((a, b) => new Date(b.full.createdAt) - new Date(a.full.createdAt));
 }
 
 async function updateDashboard() {
@@ -277,11 +529,18 @@ async function loadAllRuns() {
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: {
-      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
       ...(options.headers || {}),
     },
     ...options,
   });
+
+  if (response.status === 401) {
+    authToken = null;
+    localStorage.removeItem('authToken');
+    showLoginOverlay();
+    throw new Error('Sessao expirada. Faca login novamente.');
+  }
 
   if (response.status === 204) {
     return null;
@@ -788,7 +1047,10 @@ function resetForm() {
 function fillForm(profile) {
   elements.profileId.value = profile.id;
   elements.profileName.value = profile.name;
-  elements.backupDir.value = profile.backupDir;
+  populateStorageLocationDropdown();
+  if (profile.storageLocationId) {
+    elements.storageLocationSelect.value = profile.storageLocationId;
+  }
   const backupScope = profile.backupScope === 'container' ? 'container' : 'volumes';
   document.querySelector(`input[name="backupScope"][value="${backupScope}"]`).checked = true;
   state.volumeSelections = Object.assign({}, profile.volumeSelections || {});
@@ -816,6 +1078,12 @@ async function saveProfile(event) {
   event.preventDefault();
   const selectedContainerIds = getSelectedContainerIds();
   const backupScope = document.querySelector('input[name="backupScope"]:checked').value;
+  const storageLocationId = elements.storageLocationSelect.value;
+
+  if (!storageLocationId) {
+    showToast('Selecione um local de armazenamento.', true);
+    return;
+  }
 
   const volumeSelections = {};
   if (backupScope === 'volumes') {
@@ -829,7 +1097,7 @@ async function saveProfile(event) {
   const payload = {
     id: elements.profileId.value || undefined,
     name: elements.profileName.value,
-    backupDir: elements.backupDir.value,
+    storageLocationId,
     containerIds: selectedContainerIds,
     backupScope,
     volumeSelections,
@@ -882,7 +1150,25 @@ async function handleProfileAction(event) {
       button.textContent = 'Executando...';
       const mode = getRunMode(profileId);
 
-      const start = await api(`/api/profiles/${profileId}/run`, { method: 'POST', body: JSON.stringify({ mode }) });
+      let basedOnFullBackupId = null;
+      if (mode === 'incremental') {
+        const result = await resolveFullBackupId(profileId, profile);
+        if (result === undefined) {
+          // Blocked: no full backup available
+          button.disabled = false;
+          button.textContent = 'Run';
+          return;
+        }
+        if (result === null) {
+          // User cancelled modal
+          button.disabled = false;
+          button.textContent = 'Run';
+          return;
+        }
+        basedOnFullBackupId = result;
+      }
+
+      const start = await api(`/api/profiles/${profileId}/run`, { method: 'POST', body: JSON.stringify({ mode, basedOnFullBackupId }) });
       state.activeRuns.set(profileId, {
         id: start.runId,
         profileId,
@@ -993,9 +1279,202 @@ async function handleProfileAction(event) {
   }
 }
 
-async function init() {
+// ─── Login overlay ────────────────────────────────────────
+function showLoginOverlay() {
+  const overlay = document.querySelector('#loginOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.querySelector('#logoutBtn')?.classList.add('hidden');
+}
+
+function hideLoginOverlay() {
+  const overlay = document.querySelector('#loginOverlay');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+document.querySelector('#loginForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.querySelector('#loginUsername')?.value || '';
+  const password = document.querySelector('#loginPassword')?.value || '';
+  const errorEl = document.querySelector('#loginError');
   try {
-    await Promise.all([loadContainers(), loadProfiles()]);
+    const result = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await result.json();
+    if (!result.ok) {
+      errorEl?.classList.remove('hidden');
+      return;
+    }
+    errorEl?.classList.add('hidden');
+    authToken = data.token;
+    if (authToken) localStorage.setItem('authToken', authToken);
+    hideLoginOverlay();
+    document.querySelector('#logoutBtn')?.classList.remove('hidden');
+    await init();
+  } catch {
+    errorEl?.classList.remove('hidden');
+  }
+});
+
+document.querySelector('#logoutBtn')?.addEventListener('click', () => {
+  authToken = null;
+  localStorage.removeItem('authToken');
+  showLoginOverlay();
+});
+
+async function checkAuthAndInit() {
+  try {
+    const status = await fetch('/api/auth-status').then((r) => r.json());
+    if (!status.requireAuth) {
+      hideLoginOverlay();
+      await init();
+      return;
+    }
+    // Auth required
+    if (authToken) {
+      // Try using stored token
+      const probe = await fetch('/api/profiles', { headers: { 'x-auth-token': authToken } });
+      if (probe.ok) {
+        hideLoginOverlay();
+        document.querySelector('#logoutBtn')?.classList.remove('hidden');
+        await init();
+        return;
+      }
+      // Token invalid
+      authToken = null;
+      localStorage.removeItem('authToken');
+    }
+    showLoginOverlay();
+  } catch {
+    // If health check fails, still show the app (might be first load)
+    await init();
+  }
+}
+
+// ─── Settings ─────────────────────────────────────────────
+function buildLanguageSelect() {
+  const select = document.querySelector('#settingsLanguage');
+  if (!select) return;
+  select.innerHTML = Object.entries(LOCALE_NAMES).map(([code, name]) =>
+    `<option value="${code}">${name}</option>`
+  ).join('');
+  select.value = currentLang;
+}
+
+async function loadSettingsView() {
+  buildLanguageSelect();
+  try {
+    const settings = await api('/api/settings');
+    const select = document.querySelector('#settingsLanguage');
+    if (select && settings.language) select.value = settings.language;
+    const authCheck = document.querySelector('#settingsRequireAuth');
+    if (authCheck) authCheck.checked = settings.requireAuth;
+    const authFields = document.querySelector('#authFields');
+    if (authFields) authFields.classList.toggle('hidden', !settings.requireAuth);
+    const usernameField = document.querySelector('#settingsUsername');
+    if (usernameField) usernameField.value = settings.username || '';
+  } catch {
+    // Non-fatal: use defaults
+  }
+}
+
+document.querySelector('#settingsRequireAuth')?.addEventListener('change', (e) => {
+  document.querySelector('#authFields')?.classList.toggle('hidden', !e.target.checked);
+});
+
+document.querySelector('#saveSettingsBtn')?.addEventListener('click', async () => {
+  const language = document.querySelector('#settingsLanguage')?.value || currentLang;
+  const requireAuth = document.querySelector('#settingsRequireAuth')?.checked || false;
+  const username = document.querySelector('#settingsUsername')?.value?.trim() || '';
+  const password = document.querySelector('#settingsPassword')?.value || '';
+
+  try {
+    await api('/api/settings', {
+      method: 'POST',
+      body: JSON.stringify({ language, requireAuth, username, password: password || undefined }),
+    });
+    currentLang = language;
+    localStorage.setItem('lang', language);
+    applyTranslations();
+    showToast(t('settings.saved'));
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+// ─── About ────────────────────────────────────────────────
+async function loadAboutView() {
+  const currentVerEl = document.querySelector('#aboutCurrentVersion');
+  const latestVerEl = document.querySelector('#aboutLatestVersion');
+  const updateWrap = document.querySelector('#aboutUpdateWrap');
+  const updateStatus = document.querySelector('#aboutUpdateStatus');
+  const updateBtn = document.querySelector('#aboutUpdateBtn');
+
+  try {
+    const about = await api('/api/about');
+    const current = about.currentVersion || '—';
+    if (currentVerEl) currentVerEl.textContent = current;
+
+    // Fetch latest from GitHub
+    if (latestVerEl) latestVerEl.textContent = t('about.checking');
+    try {
+      const ghRes = await fetch('https://api.github.com/repos/asabino2/dockerbackup/tags', {
+        headers: { Accept: 'application/vnd.github.v3+json' },
+      });
+      if (ghRes.ok) {
+        const tags = await ghRes.json();
+        const latestTag = tags[0]?.name?.replace(/^v/, '') || null;
+        if (latestVerEl) latestVerEl.textContent = latestTag || '—';
+
+        if (updateWrap) updateWrap.classList.remove('hidden');
+        if (latestTag && current !== latestTag) {
+          if (updateStatus) updateStatus.textContent = t('about.updateAvailable');
+          if (updateBtn) updateBtn.classList.remove('hidden');
+        } else {
+          if (updateStatus) updateStatus.textContent = t('about.upToDate');
+          if (updateBtn) updateBtn.classList.add('hidden');
+        }
+      } else {
+        if (latestVerEl) latestVerEl.textContent = '—';
+        if (updateStatus) updateStatus.textContent = t('about.checkError');
+        if (updateWrap) updateWrap.classList.remove('hidden');
+      }
+    } catch {
+      if (latestVerEl) latestVerEl.textContent = '—';
+      if (updateStatus) updateStatus.textContent = t('about.checkError');
+      if (updateWrap) updateWrap.classList.remove('hidden');
+    }
+  } catch (error) {
+    if (currentVerEl) currentVerEl.textContent = '—';
+    showToast(error.message, true);
+  }
+}
+
+document.querySelector('#aboutUpdateBtn')?.addEventListener('click', async () => {
+  const btn = document.querySelector('#aboutUpdateBtn');
+  const status = document.querySelector('#aboutUpdateStatus');
+  if (btn) { btn.disabled = true; btn.textContent = t('about.updating'); }
+  try {
+    await api('/api/update', { method: 'POST' });
+    if (status) status.textContent = t('about.updateSuccess');
+    showToast(t('about.updateSuccess'));
+  } catch (error) {
+    if (btn) { btn.disabled = false; btn.textContent = t('about.update'); }
+    if (status) status.textContent = t('about.updateError');
+    showToast(error.message, true);
+  }
+});
+
+async function init() {
+  applyTranslations();
+  try {
+    await Promise.all([loadContainers(), loadProfiles(), loadStorageLocations()]);
     await updateDashboard();
   } catch (error) {
     showToast(error.message, true);
@@ -1011,4 +1490,6 @@ elements.profilesList.addEventListener('click', handleProfileAction);
 document.querySelector('#backupsViewList').addEventListener('click', handleProfileAction);
 document.querySelector('#refreshRuns')?.addEventListener('click', () => loadAllRuns());
 
-init();
+// Apply translations early (before auth check so login page is translated)
+applyTranslations();
+checkAuthAndInit();

@@ -28,9 +28,9 @@
             </button>
           </li>
           <li>
-            <button class="nav-item" data-view="servers">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="17" width="20" height="4" rx="1"/></svg>
-              <span>Servers</span>
+            <button class="nav-item" data-view="storage">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <span>Storage Locations</span>
             </button>
           </li>
           <li>
@@ -48,30 +48,27 @@
           <li>
             <button class="nav-item" data-view="backups">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-              <span>Backups</span>
+              <span data-i18n="nav.backups">Backups</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span data-i18n="nav.settings">Configurações</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="about">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span data-i18n="nav.about">Sobre</span>
             </button>
           </li>
         </ul>
 
-        <div class="nav-section-label">CONFIGURATION</div>
-
-        <ul class="nav-list">
-          <li>
-            <button class="nav-item" data-view="storage">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-              <span>Storage Locations</span>
-            </button>
-          </li>
-          <li>
-            <button class="nav-item" data-view="naming">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-              <span>Naming Rules</span>
-            </button>
-          </li>
-        </ul>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn--ghost btn--sm sidebar-logout hidden" data-i18n="login.logout">Sair</button>
+        </div>
       </nav>
-
-      <!-- ===== MAIN CONTENT ===== -->
       <div class="main-content">
 
         <!-- VIEW: Dashboard -->
@@ -153,15 +150,6 @@
           </div>
         </div>
 
-        <!-- VIEW: Servers -->
-        <div id="view-servers" class="view hidden">
-          <div class="page-header">
-            <h1 class="page-title">Servers</h1>
-            <button id="refreshServers" class="btn btn--secondary">Refresh</button>
-          </div>
-          <div id="serversList" class="servers-grid"></div>
-        </div>
-
         <!-- VIEW: Backup Profiles -->
         <div id="view-profiles" class="view hidden">
           <div class="page-header">
@@ -217,22 +205,130 @@
           <div id="backupsViewList"></div>
         </div>
 
-        <!-- VIEW: Storage -->
+        <!-- VIEW: Storage Locations -->
         <div id="view-storage" class="view hidden">
-          <div class="page-header"><h1 class="page-title">Storage Locations</h1></div>
-          <div class="card"><p class="empty-state">Sem locais de armazenamento configurados.</p></div>
+          <div class="page-header">
+            <h1 class="page-title" data-i18n="storage.title">Storage Locations</h1>
+            <button id="openCreateStorageModal" class="btn btn--primary" data-i18n="storage.new">+ Novo Local</button>
+          </div>
+          <div class="card" id="storageLocationsCard">
+            <div id="storageLocationsList"></div>
+          </div>
         </div>
 
-        <!-- VIEW: Naming -->
-        <div id="view-naming" class="view hidden">
-          <div class="page-header"><h1 class="page-title">Naming Rules</h1></div>
-          <div class="card"><p class="empty-state">Sem regras de nomenclatura configuradas.</p></div>
+        <!-- VIEW: Settings -->
+        <div id="view-settings" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title" data-i18n="settings.title">Configurações</h1>
+          </div>
+          <div class="card settings-card">
+            <div class="settings-section">
+              <h2 data-i18n="settings.language">Idioma</h2>
+              <p data-i18n="settings.languageDesc">Selecione o idioma de toda a interface</p>
+              <select id="settingsLanguage" class="settings-select">
+              </select>
+            </div>
+            <div class="settings-section">
+              <h2 data-i18n="settings.auth">Controle de Acesso</h2>
+              <label class="toggle-label">
+                <input type="checkbox" id="settingsRequireAuth" />
+                <span data-i18n="settings.authEnabled">Exigir usuário e senha para acesso</span>
+              </label>
+              <div id="authFields" class="auth-fields hidden">
+                <div class="form-field">
+                  <label for="settingsUsername" data-i18n="settings.username">Usuário</label>
+                  <input id="settingsUsername" type="text" autocomplete="username" />
+                </div>
+                <div class="form-field">
+                  <label for="settingsPassword" data-i18n="settings.password">Senha (deixe em branco para não alterar)</label>
+                  <input id="settingsPassword" type="password" autocomplete="new-password" />
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button id="saveSettingsBtn" class="btn btn--primary" data-i18n="settings.saveSettings">Salvar configurações</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW: About -->
+        <div id="view-about" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title" data-i18n="about.title">Sobre</h1>
+          </div>
+          <div class="card about-card">
+            <div class="about-logo-wrap">
+              <img src="/icon.png" class="about-logo" alt="DockerBackup" />
+              <h2>DockerBackup</h2>
+            </div>
+            <p class="about-description" data-i18n="about.description">Aplicação web para backup e restauração de volumes Docker com suporte a snapshots incrementais e restore seletivo.</p>
+
+            <div class="about-version-grid">
+              <div class="about-version-item">
+                <span class="about-version-label" data-i18n="about.currentVersion">Versão atual</span>
+                <strong id="aboutCurrentVersion">—</strong>
+              </div>
+              <div class="about-version-item">
+                <span class="about-version-label" data-i18n="about.latestVersion">Última versão</span>
+                <strong id="aboutLatestVersion" data-i18n="about.checking">Verificando...</strong>
+              </div>
+            </div>
+
+            <div id="aboutUpdateWrap" class="about-update-wrap hidden">
+              <span id="aboutUpdateStatus" class="about-update-status"></span>
+              <button id="aboutUpdateBtn" class="btn btn--primary hidden" data-i18n="about.update">Atualizar agora</button>
+            </div>
+
+            <div class="about-changelog">
+              <h3 data-i18n="about.changelog">Últimas alterações</h3>
+              <div id="aboutChangelog" class="changelog-content">
+                <h4>0.0.3</h4>
+                <ul>
+                  <li>Suporte a múltiplos idiomas (10 idiomas)</li>
+                  <li>Aba de configurações com controle de acesso (usuário e senha)</li>
+                  <li>Aba "Sobre" com verificação de versão via GitHub e atualização automática</li>
+                </ul>
+                <h4>0.0.2</h4>
+                <ul>
+                  <li>Adicionado gerenciamento de Storage Locations</li>
+                  <li>Backup incremental com seleção de full backup base</li>
+                  <li>Agrupamento visual de backups incrementais sob o full</li>
+                  <li>Removidas abas Servers e Naming Rules</li>
+                </ul>
+                <h4>0.0.1</h4>
+                <ul>
+                  <li>Versão inicial: backup e restore de volumes Docker</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div><!-- /.main-content -->
     </div><!-- /.app-shell -->
 
     <aside id="toast" class="toast hidden"></aside>
+
+    <!-- Login overlay -->
+    <div id="loginOverlay" class="login-overlay hidden" aria-hidden="true">
+      <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <img src="/icon.png" class="login-logo" alt="DockerBackup" />
+        <h2 id="loginTitle" data-i18n="login.title">Acesso restrito</h2>
+        <p data-i18n="login.subtitle">Faça login para continuar</p>
+        <form id="loginForm" class="login-form">
+          <div class="form-field">
+            <label for="loginUsername" data-i18n="login.username">Usuário</label>
+            <input id="loginUsername" type="text" autocomplete="username" required />
+          </div>
+          <div class="form-field">
+            <label for="loginPassword" data-i18n="login.password">Senha</label>
+            <input id="loginPassword" type="password" autocomplete="current-password" required />
+          </div>
+          <p id="loginError" class="login-error hidden" data-i18n="login.error">Usuário ou senha incorretos.</p>
+          <button class="btn btn--primary btn--full" type="submit" data-i18n="login.submit">Entrar</button>
+        </form>
+      </div>
+    </div>
 
     <div id="restoreModal" class="modal hidden" aria-hidden="true">
       <div class="modal-backdrop" data-action="close-restore-modal"></div>
@@ -282,8 +378,10 @@
           </div>
 
           <div class="form-field">
-            <label for="backupDir">Diretório de backup no host Docker</label>
-            <input id="backupDir" name="backupDir" type="text" placeholder="/srv/docker-backups" required />
+            <label for="storageLocationId">Local de armazenamento</label>
+            <select id="storageLocationId" name="storageLocationId" required>
+              <option value="">Selecione um local...</option>
+            </select>
           </div>
 
           <fieldset class="form-fieldset">
@@ -318,6 +416,49 @@
       </div>
     </div>
 
+    <!-- Modal: Selecionar backup full base para incremental -->
+    <div id="fullBackupPickerModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-full-backup-picker"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fullBackupPickerTitle">
+        <div class="modal-header">
+          <h3 id="fullBackupPickerTitle">Selecionar backup full base</h3>
+          <button id="fullBackupPickerClose" class="btn btn--ghost btn--sm" type="button" data-action="close-full-backup-picker">Fechar</button>
+        </div>
+        <p class="modal-subtitle">Selecione o backup full que será utilizado como base para o backup incremental:</p>
+        <div id="fullBackupPickerOptions" class="modal-options"></div>
+        <div class="modal-actions">
+          <button id="fullBackupPickerConfirm" class="btn btn--primary" type="button">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Criar/Editar Storage Location -->
+    <div id="storageLocationFormModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-storage-modal"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="storageModalTitle">
+        <div class="modal-header">
+          <h3 id="storageModalTitle">Novo Local de Armazenamento</h3>
+          <button id="storageModalClose" class="btn btn--ghost btn--sm" type="button" data-action="close-storage-modal">Fechar</button>
+        </div>
+        <form id="storageLocationForm" class="profile-form">
+          <input type="hidden" id="storageFormId" />
+          <div class="form-field">
+            <label for="storageLocationName">Nome</label>
+            <input id="storageLocationName" type="text" placeholder="Backup principal" required />
+          </div>
+          <div class="form-field">
+            <label for="storageLocationDir">Diretório</label>
+            <input id="storageLocationDir" type="text" placeholder="/srv/docker-backups" required />
+          </div>
+          <div class="form-actions">
+            <button class="btn btn--primary" type="submit">Salvar</button>
+            <button class="btn btn--secondary" type="button" id="cancelStorageForm">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/translations.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-1.0.0-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.0.2-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,45 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **1.0.0**
+Versão atual: **0.0.2**
 
 ---
 
-## 🗄️ Visão geral
+## � Changelog
+### [0.0.3] — Settings, About, i18n e autenticação
+
+#### Adicionado
+- **Configurações:** nova aba com seletor de idioma (10 idiomas) e controle de acesso por usuário/senha
+- **Sobre:** nova aba com logo, descrição, versão atual, verificação de última versão via GitHub e botão de atualização automática
+- **i18n:** suporte a 10 idiomas — Português (pt-BR), English, Español, Deutsch, Polski, Italiano, Русский, 中文, 日本語, فارسی
+- **Autenticação opcional:** todas as rotas da API protegidas por token SHA-256 quando habilitado; endpoints `/api/login` e `/api/auth-status` são públicos
+- **Atualização automática:** endpoint `POST /api/update` executa `git pull` e reinicia o container
+
+---
+### [0.0.2] — 2026-05-09
+
+#### Adicionado
+- **Storage Locations:** nova seção para cadastrar locais de armazenamento (nome + diretório). Agora o diretório de backup é selecionado via dropdown ao criar/editar um profile, em vez de ser digitado manualmente.
+- **Backup Incremental — seleção de base:** ao executar um backup incremental com múltiplos backups full disponíveis, um modal é exibido para o usuário escolher qual será usado como base. Com apenas um full disponível, é selecionado automaticamente.
+- **Bloqueio de incremental sem full:** o botão de backup incremental é bloqueado com mensagem de aviso caso não exista nenhum backup full realizado para o profile.
+- **Agrupamento na aba Backups:** backups incrementais são exibidos agrupados e indentados abaixo do seu respectivo backup full, com badges visuais distintos (verde para Full, amarelo para Incremental).
+
+#### Removido
+- Abas **Servers** e **Naming Rules** removidas da interface.
+
+---
+
+### [0.0.1] — inicial
+
+- Cadastro de profiles de backup por container
+- Backup full e incremental com GNU tar + `--listed-incremental`
+- Restore seletivo de snapshots
+- Suporte a escopos `somente volumes` e `container inteiro`
+- Suporte a Docker API nativa (`getArchive`/`putArchive`) quando rodando dentro de container
+
+---
+
+## �🗄️ Visão geral
 
 O `dockerbackup` fornece:
 

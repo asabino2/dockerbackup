@@ -13,7 +13,7 @@ class JsonStore {
     try {
       await fs.access(this.filePath);
     } catch {
-      await fs.writeFile(this.filePath, JSON.stringify({ profiles: [], backups: [] }, null, 2));
+      await fs.writeFile(this.filePath, JSON.stringify({ profiles: [], backups: [], storageLocations: [], settings: {} }, null, 2));
     }
   }
 
@@ -22,6 +22,8 @@ class JsonStore {
     const parsed = JSON.parse(raw);
     parsed.profiles ||= [];
     parsed.backups ||= [];
+    parsed.storageLocations ||= [];
+    parsed.settings ||= {};
     return parsed;
   }
 
@@ -136,6 +138,62 @@ class JsonStore {
 
     return [];
   }
+  async listStorageLocations() {
+    const data = await this.read();
+    return data.storageLocations;
+  }
+
+  async saveStorageLocation(input) {
+    const now = new Date().toISOString();
+    const location = {
+      id: input.id || randomUUID(),
+      name: input.name,
+      directory: input.directory,
+      updatedAt: now,
+      createdAt: input.createdAt || now,
+    };
+
+    await this.write((data) => {
+      const index = data.storageLocations.findIndex((item) => item.id === location.id);
+      if (index >= 0) {
+        data.storageLocations[index] = location;
+      } else {
+        data.storageLocations.push(location);
+      }
+      return data;
+    });
+
+    return location;
+  }
+
+  async deleteStorageLocation(locationId) {
+    await this.write((data) => {
+      data.storageLocations = data.storageLocations.filter((item) => item.id !== locationId);
+      return data;
+    });
+  }
+
+  async getSettings() {
+    const data = await this.read();
+    return {
+      language: data.settings.language || 'pt-BR',
+      requireAuth: data.settings.requireAuth || false,
+      username: data.settings.username || '',
+      passwordHash: data.settings.passwordHash || '',
+    };
+  }
+
+  async saveSettings(input) {
+    await this.write((data) => {
+      data.settings = {
+        ...data.settings,
+        ...input,
+      };
+      return data;
+    });
+    return this.getSettings();
+  }
+
   async getLastContainerBackupTime(profileId, containerId) {
     const backups = await this.listBackups(profileId);
     const ordered = backups

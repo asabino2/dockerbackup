@@ -1,6 +1,6 @@
 {
   "name": "dockerbackup-app",
-  "version": "1.0.0",
+  "version": "0.0.3",
   "description": "Aplicacao web para backup e restauracao de volumes Docker",
   "main": "src/server.js",
   "scripts": {

@@ -470,6 +470,19 @@ async function main() {
     }
   });
 
+  app.get('/api/storage-locations/:id/impact', authMiddleware, async (request, response) => {
+    try {
+      const impact = await store.storageLocationImpact(request.params.id);
+      response.json({
+        profileCount: impact.profiles.length,
+        profileNames: impact.profiles.map((p) => p.name),
+        backupCount: impact.backupCount,
+      });
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
   app.delete('/api/storage-locations/:id', authMiddleware, async (request, response) => {
     try {
       await store.deleteStorageLocation(request.params.id);

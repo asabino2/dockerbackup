@@ -58,6 +58,7 @@ class JsonStore {
       backupScope: profileInput.backupScope || 'volumes',
       volumeSelections: profileInput.volumeSelections || {},
       backupDir: profileInput.backupDir,
+      storageLocationId: profileInput.storageLocationId || null,
       updatedAt: now,
       createdAt: profileInput.createdAt || now,
     };
@@ -166,8 +167,21 @@ class JsonStore {
     return location;
   }
 
+  async storageLocationImpact(locationId) {
+    const data = await this.read();
+    const profiles = data.profiles.filter((p) => p.storageLocationId === locationId);
+    const profileIds = new Set(profiles.map((p) => p.id));
+    const backupCount = data.backups.filter((b) => profileIds.has(b.profileId)).length;
+    return { profiles, backupCount };
+  }
+
   async deleteStorageLocation(locationId) {
     await this.write((data) => {
+      const profileIds = new Set(
+        data.profiles.filter((p) => p.storageLocationId === locationId).map((p) => p.id)
+      );
+      data.backups = data.backups.filter((b) => !profileIds.has(b.profileId));
+      data.profiles = data.profiles.filter((p) => !profileIds.has(p.id));
       data.storageLocations = data.storageLocations.filter((item) => item.id !== locationId);
       return data;
     });

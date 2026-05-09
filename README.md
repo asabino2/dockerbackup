@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.0.6-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.0.7-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,19 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.0.6**
+Versão atual: **0.0.7**
 
 ---
 
 ## � Changelog
+
+### [0.0.7] — 2026-05-09
+
+#### Adicionado
+- **Exclusão em cascata de Storage Location:** ao excluir um local de armazenamento, o sistema busca automaticamente todos os profiles vinculados e seus respectivos backups e os exclui junto. Antes de confirmar, o usuário recebe um aviso detalhado listando os nomes dos profiles afetados e a quantidade de backups que serão removidos.
+- **Rota `GET /api/storage-locations/:id/impact`:** nova rota que retorna, sem fazer alterações, quantos profiles e backups serão impactados pela exclusão de um local de armazenamento.
+
+---
 
 ### [0.0.6] — 2026-05-09
 

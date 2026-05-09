@@ -253,11 +253,32 @@ elements.storageLocationsList?.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-storage-action="delete"]');
   if (!btn) return;
   const id = btn.dataset.storageId;
-  if (!window.confirm('Excluir este local de armazenamento?')) return;
+
+  // Fetch impact before confirming
+  let impact = { profileCount: 0, profileNames: [], backupCount: 0 };
+  try {
+    impact = await api(`/api/storage-locations/${id}/impact`);
+  } catch {
+    // Non-fatal; proceed with generic message
+  }
+
+  let message = 'Excluir este local de armazenamento?';
+  if (impact.profileCount > 0) {
+    const names = impact.profileNames.map((n) => `• ${n}`).join('\n');
+    message =
+      `⚠️ ATENÇÃO: Esta ação também irá excluir permanentemente:\n\n` +
+      `  ${impact.profileCount} profile(s) de backup:\n${names}\n\n` +
+      `  ${impact.backupCount} backup(s) registrado(s) desses profiles\n\n` +
+      `Deseja continuar?`;
+  }
+
+  if (!window.confirm(message)) return;
   try {
     await api(`/api/storage-locations/${id}`, { method: 'DELETE' });
-    await loadStorageLocations();
-    showToast('Local removido.');
+    await Promise.all([loadStorageLocations(), loadProfiles()]);
+    showToast(impact.profileCount > 0
+      ? `Local removido junto com ${impact.profileCount} profile(s) e ${impact.backupCount} backup(s).`
+      : 'Local de armazenamento removido.');
   } catch (error) {
     showToast(error.message, true);
   }

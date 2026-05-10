@@ -322,6 +322,19 @@ async function main() {
     }
   });
 
+  app.get('/api/backups/:backupId', authMiddleware, async (request, response) => {
+    try {
+      const backup = await store.getBackup(request.params.backupId);
+      if (!backup) {
+        response.status(404).json({ error: 'Backup nao encontrado.' });
+        return;
+      }
+      response.json(backup);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
   app.post('/api/profiles/:profileId/run', authMiddleware, async (request, response) => {
     try {
       const profileId = request.params.profileId;

@@ -516,6 +516,7 @@ class BackupService {
 
             containerBackup.fileCount = Math.max(fileCurrent, fileTotal);
             try { containerBackup.archiveSize = (await fs.stat(absoluteArchivePath)).size; } catch {}
+            containerBackup.logs = [...logs];
 
             onProgress({
               containerName,
@@ -594,6 +595,7 @@ class BackupService {
 
         containerBackup.fileCount = Math.max(fileCurrent, fileTotal);
         try { containerBackup.archiveSize = (await fs.stat(absoluteArchivePath)).size; } catch {}
+        containerBackup.logs = [...logs];
 
         onProgress({
           containerName,
@@ -670,6 +672,7 @@ class BackupService {
         const hostArchivePath = path.join(profile.backupDir, ...archiveRelativePath.split('/'));
         containerBackup.archiveSize = (await fs.stat(hostArchivePath)).size;
       } catch {}
+      containerBackup.logs = [...logs];
 
       onProgress({
         containerName,
@@ -698,6 +701,7 @@ class BackupService {
         ...containerBackup,
         status: 'error',
         error: error.message,
+        logs: [...logs],
       };
     }
   }

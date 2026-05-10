@@ -193,10 +193,11 @@
                     <th>Files</th>
                     <th>Size</th>
                     <th>Started</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="allRunsBody">
-                  <tr><td colspan="8" class="empty-row">Nenhum run encontrado.</td></tr>
+                  <tr><td colspan="9" class="empty-row">Nenhum run encontrado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -296,6 +297,7 @@
               <h2>DockerBackup</h2>
             </div>
             <p class="about-description" data-i18n="about.description">Aplicação web para backup e restauração de volumes Docker com suporte a snapshots incrementais e restore seletivo.</p>
+            <p class="about-author">Desenvolvido por Alexander Sabino em 2026</p>
 
             <div class="about-version-grid">
               <div class="about-version-item">
@@ -319,7 +321,6 @@
                 <p class="changelog-loading">Carregando changelog...</p>
               </div>
             </div>
-            <p class="about-author">Desenvolvido por Alexander Sabino em 2026</p>
           </div>
         </div>
 
@@ -576,6 +577,20 @@
             <button class="btn btn--secondary" type="button" id="cancelScheduleForm">Cancelar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal: Log do Backup Run -->
+    <div id="runLogModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-run-log-modal"></div>
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="runLogTitle">
+        <div class="modal-header">
+          <h3 id="runLogTitle">Log do Backup</h3>
+          <button id="runLogModalClose" class="btn btn--ghost btn--sm" type="button">Fechar</button>
+        </div>
+        <div id="runLogContent" class="run-log-content">
+          <p class="changelog-loading">Carregando log...</p>
+        </div>
       </div>
     </div>
 

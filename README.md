@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="./public/docker_backup_icon_for_appstore.png" width="200" alt="DockerBackup" />
 </p>
 
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.4-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.5-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -23,6 +23,18 @@ Versão atual: **0.1.4**
 ---
 
 ## � Changelog
+### [0.1.5] — 2026-05-10
+
+#### Adicionado
+- **Botão `Log` na aba Backup Runs:** cada run exibe agora um botão que abre um modal com o log completo do backup por container, incluindo saída do tar, avisos e erros ocorridos durante a execução.
+- **Endpoint `GET /api/backups/:backupId`:** novo endpoint que retorna os dados completos de um backup (incluindo logs) a partir do seu ID.
+- **Logs persistidos por container no backup:** o array de logs gerado durante o backup (`pushLog`) é agora salvo em `containerBackup.logs` e persistido no `store.json`, disponível para consulta posterior.
+
+#### Melhorado
+- **Dropdowns estilizados como campos de texto:** todos os elementos `<select>` dentro de `.form-field` e o `.settings-select` passaram a usar o mesmo estilo visual dos inputs de texto (borda, padding, tipografia), com ícone de seta customizado via SVG.
+- **Tela Sobre — posição do autor:** o texto `Desenvolvido por Alexander Sabino em 2026` foi movido para logo abaixo da descrição da aplicação.
+- **Tela Sobre — changelog limitado:** a seção de changelog exibe agora apenas as últimas 4 entradas de versão.
+
 ### [0.1.4] — 2026-05-09
 
 #### Corrigido

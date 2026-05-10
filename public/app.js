@@ -635,6 +635,7 @@ async function loadAllRuns() {
         <td>${fileCount || '—'}</td>
         <td>${sizeStr}</td>
         <td>${escapeHtml(new Date(b.createdAt).toLocaleString('pt-BR'))}</td>
+        <td><button class="btn btn--secondary btn--sm run-log-btn" data-backup-id="${escapeHtml(b.id)}">Log</button></td>
       </tr>
     `;
   }).join('');
@@ -1818,7 +1819,7 @@ function markdownInline(raw) {
     .replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
-function parseChangelogSection(markdown) {
+function parseChangelogSection(markdown, maxEntries = 4) {
   // Extract from ## Changelog (or ## 🗂 Changelog etc.) to next ##
   const start = markdown.search(/^##\s+[^\n]*[Cc]hangelog/m);
   if (start === -1) return null;
@@ -1829,6 +1830,7 @@ function parseChangelogSection(markdown) {
   const lines = section.split('\n');
   let html = '';
   let inList = false;
+  let entryCount = 0;
 
   for (const line of lines) {
     const h3 = line.match(/^###\s+(.+)/);
@@ -1836,12 +1838,16 @@ function parseChangelogSection(markdown) {
     const li = line.match(/^-\s+(.+)/);
 
     if (h3) {
+      if (entryCount >= maxEntries) break;
       if (inList) { html += '</ul>'; inList = false; }
       html += `<h4>${markdownInline(h3[1].replace(/\[([^\]]+)\]/, '$1'))}</h4>`;
+      entryCount += 1;
     } else if (h4) {
+      if (entryCount > maxEntries) break;
       if (inList) { html += '</ul>'; inList = false; }
       html += `<h5 class="changelog-section">${markdownInline(h4[1])}</h5>`;
     } else if (li) {
+      if (entryCount > maxEntries) break;
       if (!inList) { html += '<ul>'; inList = true; }
       html += `<li>${markdownInline(li[1])}</li>`;
     } else if (line.startsWith('---') || line.startsWith('## ')) {
@@ -1938,6 +1944,60 @@ document.querySelector('#clearForm').addEventListener('click', resetForm);
 elements.profilesList.addEventListener('click', handleProfileAction);
 document.querySelector('#backupsViewList').addEventListener('click', handleProfileAction);
 document.querySelector('#refreshRuns')?.addEventListener('click', () => loadAllRuns());
+
+// Run log modal
+document.querySelector('#allRunsBody')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.run-log-btn');
+  if (!btn) return;
+  const backupId = btn.dataset.backupId;
+  if (!backupId) return;
+  openRunLogModal(backupId);
+});
+
+document.querySelector('#runLogModalClose')?.addEventListener('click', () => {
+  document.querySelector('#runLogModal')?.classList.add('hidden');
+});
+document.querySelector('#runLogModal')?.addEventListener('click', (e) => {
+  if (e.target.dataset.action === 'close-run-log-modal') {
+    document.querySelector('#runLogModal').classList.add('hidden');
+  }
+});
+
+async function openRunLogModal(backupId) {
+  const modal = document.querySelector('#runLogModal');
+  const content = document.querySelector('#runLogContent');
+  if (!modal || !content) return;
+  modal.classList.remove('hidden');
+  content.innerHTML = '<p class="changelog-loading">Carregando log...</p>';
+  try {
+    const backup = await api(`/api/backups/${encodeURIComponent(backupId)}`);
+    const containers = backup.containers || [];
+    if (!containers.length) {
+      content.innerHTML = '<p class="changelog-loading">Nenhum log disponível para este backup.</p>';
+      return;
+    }
+    let html = '';
+    for (const c of containers) {
+      const name = escapeHtml(c.containerName || c.containerId || '?');
+      const status = escapeHtml(c.status || '—');
+      html += `<div class="run-log-section">`;
+      html += `<h4 class="run-log-container-name">${name} <span class="status-badge status-badge--${escapeHtml(c.status || '')}">${status}</span></h4>`;
+      if (c.error) {
+        html += `<div class="run-log-error"><strong>Erro:</strong> ${escapeHtml(c.error)}</div>`;
+      }
+      const logs = c.logs || [];
+      if (logs.length) {
+        html += `<pre class="run-log-pre">${logs.map((l) => escapeHtml(l)).join('\n')}</pre>`;
+      } else {
+        html += `<p class="run-log-empty">Sem log detalhado (backup pode ter sido criado antes desta versão).</p>`;
+      }
+      html += `</div>`;
+    }
+    content.innerHTML = html;
+  } catch (err) {
+    content.innerHTML = `<p class="changelog-loading">Erro ao carregar log: ${escapeHtml(err.message)}</p>`;
+  }
+}
 
 // Apply translations early (before auth check so login page is translated)
 applyTranslations();

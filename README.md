@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.5-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.1.6-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -23,6 +23,12 @@ Versão atual: **0.1.4**
 ---
 
 ## � Changelog
+### [0.1.6] — 2026-05-11
+
+#### Corrigido
+- Contagem de arquivos totais antes do inicio do backup para todos os escopos (container inteiro e volumes), corrigindo a barra de progresso que mostrava 0 no total
+- Container alvo agora e parado antes do backup de volumes e reiniciado apos conclusao, evitando inconsistencias nos dados arquivados
+
 ### [0.1.5] — 2026-05-10
 
 #### Adicionado

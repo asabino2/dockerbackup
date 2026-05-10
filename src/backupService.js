@@ -390,77 +390,18 @@ class BackupService {
         pushLog(`Diretorio de backup pronto em ${backupRoot}.`, 'preparando');
 
         const originalRunning = inspect.State?.Running === true;
-        let tempStarted = false;
-        try {
+
+        // === Path A: escopo de volumes → helper container (container alvo fica parado) ===
+        if (backupScope === 'volumes') {
           if (originalRunning) {
             pushLog('Container ativo detectado. Parando antes do backup.', 'preparando');
             await this.dockerService.stopContainer(containerId);
           }
 
-          pushLog('Iniciando container temporariamente para snapshot.', 'preparando');
-          await this.dockerService.repairAndStartContainer(containerId);
-          tempStarted = true;
-
-          const sourcePaths = backupScope === 'container'
-            ? ['/']
-            : activeMounts.map((mount) => mount.destination);
-          const relSourcePaths = sourcePaths.map((item) => toContainerRelPath(item));
-
-          if (backupScope === 'volumes') {
-            pushLog('Contando arquivos para barra de progresso.', 'contando');
-            const countCmd = `set -eu; TOTAL=0; for p in ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; do if [ -e \"/$p\" ]; then C=$(find \"/$p\" 2>/dev/null | wc -l | tr -d \" \" ); TOTAL=$((TOTAL + C)); fi; done; echo \"$TOTAL\"`;
-            const output = await this.dockerService.runContainerCommand(containerId, countCmd);
-            const parsed = Number(output.split(/\r?\n/).pop());
-            fileTotal = Number.isFinite(parsed) ? parsed : 0;
-            pushLog(`Total de arquivos identificado: ${fileTotal}.`, 'contando');
-          }
-
           const absoluteArchivePath = path.posix.join(backupRoot, archiveRelativePath);
-          const snarInContainer = containerSnapshotPath(profile.id, containerId, backupScope);
           const absoluteSnapshotPath = path.posix.join(backupRoot, snapshotRelativePath);
 
-          // Detecta se o container tem GNU tar (--listed-incremental é extensão GNU).
-          // Containers Alpine/BusyBox usam o fallback --newer-mtime.
-          const hasGnuTar = await this.dockerService.containerHasGnuTar(containerId);
-          pushLog(`GNU tar detectado no container: ${hasGnuTar ? 'sim' : 'nao (usando --newer-mtime como fallback)'}.`, 'preparando');
-
-          let tarIncrementalFlag = '';
-
-          if (hasGnuTar) {
-            // Gerencia o .snar assim como o script shell usa --listed-incremental=$dirbackup/backup.snar:
-            // - Full: remove o .snar anterior do container para forçar snapshot limpo.
-            // - Incremental: injeta o .snar salvo no diretório de backup de volta no container.
-            if (runMode === 'full') {
-              await this.dockerService.runContainerCommand(containerId, `rm -f ${shellQuote(snarInContainer)}`).catch(() => null);
-              pushLog('Backup full: snapshot incremental anterior removido.', 'preparando');
-            } else {
-              try {
-                await fs.access(absoluteSnapshotPath);
-                await this.dockerService.putSnarToContainer(containerId, absoluteSnapshotPath, snarInContainer);
-                pushLog('Backup incremental: snapshot anterior restaurado no container.', 'preparando');
-              } catch {
-                pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo.', 'preparando');
-              }
-            }
-            tarIncrementalFlag = `--listed-incremental=${shellQuote(snarInContainer)}`;
-          } else {
-            // Fallback para containers sem GNU tar: usa helper container com GNU tar
-            // montando os volumes diretamente — produz .snar como qualquer outro container.
-            if (runMode === 'full') {
-              // Full: remove .snar anterior para forçar snapshot limpo no helper.
-              await fs.rm(absoluteSnapshotPath, { force: true }).catch(() => null);
-            }
-            // O .snar é gerenciado pelo helper usando helperSnarPath calculado abaixo.
-          }
-
-          // Containers BusyBox sem GNU tar: roda o tar num helper container que TEM GNU tar,
-          // montando os volumes do container alvo diretamente.
-          if (!hasGnuTar && backupScope === 'volumes' && activeMounts.length) {
-            pushLog('Container sem GNU tar: usando helper com GNU tar para gerar archive.', 'gerando-tar');
-            updateFileProgress();
-
-            // Quando rodando dentro do Docker, backupRoot é um path interno do container da app.
-            // Precisamos do source real (host path ou volume name) para passar ao helper container.
+          try {
             const selfBind = await this.dockerService.getSelfBindSource(backupRoot);
             if (!selfBind) {
               throw new Error(
@@ -469,18 +410,40 @@ class BackupService {
               );
             }
 
-            // suffix é o subpath dentro do volume (ex: /backups quando mount=/app/data e backupRoot=/app/data/backups)
             const helperBackupRoot = `/backuproot_base${selfBind.suffix}`;
             const helperBinds = [`${selfBind.source}:/backuproot_base`];
             const helperRelPaths = [];
             for (const mount of activeMounts) {
               const src = mount.type === 'volume' ? mount.name : mount.source;
-              // Monta no path real do container (ex: /var/lib/gitea) para que o archive
-              // gerado tenha entradas com os paths corretos (ex: var/lib/gitea/...).
-              // Isso garante compatibilidade com o restore via helper.
+              // Monta no path real do container para que o archive tenha entradas com paths corretos.
               helperBinds.push(`${src}:${mount.destination}:ro`);
               helperRelPaths.push(toContainerRelPath(mount.destination));
             }
+
+            // Conta arquivos via helper antes de iniciar o tar (container alvo permanece parado).
+            pushLog('Contando arquivos para barra de progresso.', 'contando');
+            const countCmd = `set -eu; TOTAL=0; for p in ${helperRelPaths.map((p) => shellQuote('/' + p)).join(' ')}; do if [ -e "$p" ]; then C=$(find "$p" 2>/dev/null | wc -l | tr -d ' '); TOTAL=$((TOTAL + C)); fi; done; echo "__DBKP_TOTAL__=$TOTAL"`;
+            await this.dockerService.runHelper({
+              binds: helperBinds,
+              cmd: countCmd,
+              onOutput: (line) => {
+                const m = String(line || '').match(/__DBKP_TOTAL__=(\d+)/);
+                if (m) fileTotal = Number(m[1]) || 0;
+              },
+            });
+            pushLog(`Total de arquivos identificado: ${fileTotal}.`, 'contando');
+            updateFileProgress();
+
+            if (runMode === 'full') {
+              await fs.rm(absoluteSnapshotPath, { force: true }).catch(() => null);
+              pushLog('Backup full: snapshot incremental anterior removido.', 'preparando');
+            } else {
+              const snarExists = await fs.access(absoluteSnapshotPath).then(() => true).catch(() => false);
+              pushLog(snarExists
+                ? 'Backup incremental: snapshot anterior encontrado.'
+                : 'Aviso: snapshot anterior nao encontrado, gerando backup completo.', 'preparando');
+            }
+
             const helperArchivePath = `${helperBackupRoot}/${archiveRelativePath}`;
             const helperSnarPath = `${helperBackupRoot}/${snapshotRelativePath}`;
             const helperSnarDir = path.posix.dirname(helperSnarPath);
@@ -491,17 +454,14 @@ class BackupService {
               `tar --ignore-failed-read --listed-incremental=${shellQuote(helperSnarPath)} -czvf ${shellQuote(helperArchivePath)} -C / ${helperRelPaths.map((p) => shellQuote(p)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`,
             ].join('; ');
 
+            pushLog('Iniciando compactacao tar dos volumes via helper.', 'gerando-tar');
             await this.dockerService.runHelper({
               binds: helperBinds,
               cmd: helperCmd,
               maxOkExitCode: 1,
               onOutput: (line, stream) => {
                 const normalizedLine = String(line || '').trim();
-                if (!normalizedLine || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) {
-                  return;
-                }
-                // No helper (tar escreve em arquivo): lista de arquivos vai para stdout;
-                // avisos do tar vão para stderr.
+                if (!normalizedLine || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) return;
                 if (stream === 'stdout' && !normalizedLine.startsWith('tar:')) {
                   fileCurrent += 1;
                   updateFileProgress(normalizedLine);
@@ -527,29 +487,66 @@ class BackupService {
               file: { current: Math.max(fileCurrent, fileTotal), total: fileTotal, currentFile: null, percent: 100 },
             });
             return containerBackup;
+          } finally {
+            if (originalRunning) {
+              pushLog('Reiniciando container (estava ativo antes do backup).', 'finalizando');
+              await this.dockerService.startContainer(containerId).catch(() => null);
+            }
+          }
+        }
+
+        // === Path B: escopo de container inteiro → iniciar temporariamente para exec ===
+        const absoluteArchivePath = path.posix.join(backupRoot, archiveRelativePath);
+        const absoluteSnapshotPath = path.posix.join(backupRoot, snapshotRelativePath);
+        let tempStarted = false;
+        try {
+          if (originalRunning) {
+            pushLog('Container ativo detectado. Parando antes do backup.', 'preparando');
+            await this.dockerService.stopContainer(containerId);
           }
 
+          pushLog('Iniciando container temporariamente para snapshot.', 'preparando');
+          await this.dockerService.repairAndStartContainer(containerId);
+          tempStarted = true;
+
+          // Conta arquivos excluindo pseudo-filesystems antes de iniciar o tar.
+          pushLog('Contando arquivos para barra de progresso.', 'contando');
+          const countCmd = `find / \\( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp \\) -prune -o -print 2>/dev/null | wc -l | tr -d ' '`;
+          const countOutput = await this.dockerService.runContainerCommand(containerId, countCmd);
+          const countParsed = Number(countOutput.split(/\r?\n/).filter((l) => l.trim()).pop());
+          fileTotal = Number.isFinite(countParsed) ? countParsed : 0;
+          pushLog(`Total de arquivos identificado: ${fileTotal}.`, 'contando');
+
+          const snarInContainer = containerSnapshotPath(profile.id, containerId, backupScope);
+
+          // Detecta se o container tem GNU tar (--listed-incremental é extensão GNU).
+          const hasGnuTar = await this.dockerService.containerHasGnuTar(containerId);
+          pushLog(`GNU tar detectado no container: ${hasGnuTar ? 'sim' : 'nao (usando --newer-mtime como fallback)'}.`, 'preparando');
+
+          let tarIncrementalFlag = '';
+          if (hasGnuTar) {
+            if (runMode === 'full') {
+              await this.dockerService.runContainerCommand(containerId, `rm -f ${shellQuote(snarInContainer)}`).catch(() => null);
+              pushLog('Backup full: snapshot incremental anterior removido.', 'preparando');
+            } else {
+              try {
+                await fs.access(absoluteSnapshotPath);
+                await this.dockerService.putSnarToContainer(containerId, absoluteSnapshotPath, snarInContainer);
+                pushLog('Backup incremental: snapshot anterior restaurado no container.', 'preparando');
+              } catch {
+                pushLog('Aviso: snapshot anterior nao encontrado, gerando backup completo.', 'preparando');
+              }
+            }
+            tarIncrementalFlag = `--listed-incremental=${shellQuote(snarInContainer)}`;
+          }
+
+          const gnuFlags = hasGnuTar ? '--ignore-failed-read' : '';
           const tarParts = [
             'set -u',
             'umask 077',
             'echo "__DBKP_TAR_BEGIN__" 1>&2',
+            `tar ${gnuFlags} ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`,
           ];
-
-          // --ignore-failed-read é extensão GNU tar — não existe no BusyBox tar (Alpine).
-          // Usar condicionalmente para evitar aborto silencioso com 0 bytes no arquivo.
-          const gnuFlags = hasGnuTar ? '--ignore-failed-read' : '';
-
-          // GNU tar: exit 0 = ok, exit 1 = avisos (arquivos mudaram, permissão negada), exit 2 = erro fatal.
-          // Aceitamos exit 1 como sucesso para não descartar archives válidos com avisos menores.
-          if (backupScope === 'container') {
-            tarParts.push(
-              `tar ${gnuFlags} ${tarIncrementalFlag} -czvf - -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run --exclude=tmp .; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
-            );
-          } else {
-            tarParts.push(
-              `tar ${gnuFlags} ${tarIncrementalFlag} -czvf - -C / ${relSourcePaths.map((item) => shellQuote(item)).join(' ')}; TAR_RC=$?; [ $TAR_RC -le 1 ] || exit $TAR_RC`
-            );
-          }
 
           updateFileProgress();
           pushLog('Iniciando compactacao tar do container.', 'gerando-tar');
@@ -558,10 +555,7 @@ class BackupService {
             maxOkExitCode: 1,
             onOutput: (line, stream) => {
               const normalizedLine = String(line || '').trim();
-              if (!normalizedLine || stream !== 'stderr' || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) {
-                return;
-              }
-
+              if (!normalizedLine || stream !== 'stderr' || normalizedLine.startsWith('__DBKP_TAR_BEGIN__')) return;
               if (!normalizedLine.startsWith('tar:')) {
                 fileCurrent += 1;
                 updateFileProgress(normalizedLine);
@@ -573,8 +567,7 @@ class BackupService {
 
           pushLog(`Arquivo gerado: ${absoluteArchivePath}`, 'finalizando');
 
-          // Persiste o .snar atualizado no diretório de backup (como o script shell faz com $dirbackup/backup.snar)
-          // para que a cadeia incremental sobreviva a recriações do container.
+          // Persiste o .snar atualizado para sobreviver a recriações do container.
           if (hasGnuTar) {
             const snarSaved = await this.dockerService.getSnarFromContainer(containerId, snarInContainer, absoluteSnapshotPath).catch(() => false);
             if (snarSaved) {

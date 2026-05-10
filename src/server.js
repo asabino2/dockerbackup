@@ -31,6 +31,22 @@ function computeNextRunAt(scheduledAt, frequency) {
   return next;
 }
 
+function createDockerServiceForSource(source) {
+  if (!source) return null;
+  if (source.type === 'unix-socket') {
+    return new DockerService({
+      socketPath: source.socketPath || config.dockerSocketPath,
+      helperImage: config.helperImage,
+    });
+  }
+  // direct or agent — both connect via TCP
+  return new DockerService({
+    host: source.host,
+    port: source.port || 2375,
+    helperImage: config.helperImage,
+  });
+}
+
 async function main() {
   await fs.mkdir(config.dataDir, { recursive: true });
 
@@ -191,9 +207,14 @@ async function main() {
     }
   });
 
-  app.get('/api/containers', authMiddleware, async (_request, response) => {
+  app.get('/api/containers', authMiddleware, async (request, response) => {
     try {
-      const containers = await dockerService.listContainers();
+      let ds = dockerService;
+      if (request.query.sourceId) {
+        const source = await store.getSource(String(request.query.sourceId));
+        if (source) ds = createDockerServiceForSource(source);
+      }
+      const containers = await ds.listContainers();
       response.json(containers);
     } catch (error) {
       response.status(500).json({ error: error.message });
@@ -263,6 +284,7 @@ async function main() {
         name: payload.name.trim(),
         backupDir: resolvedBackupDir.trim(),
         storageLocationId: payload.storageLocationId || existing?.storageLocationId || null,
+        sourceId: payload.sourceId || existing?.sourceId || null,
         containerIds: payload.containerIds,
         mode: existing?.mode || 'full',
         backupScope: payload.backupScope || existing?.backupScope || 'volumes',
@@ -365,7 +387,20 @@ async function main() {
 
       runJobs.set(runId, job);
 
-      void backupService.runProfile(profileId, {
+      let runBackupService = backupService;
+      try {
+        const runProfile = await store.getProfile(profileId);
+        if (runProfile?.sourceId) {
+          const source = await store.getSource(runProfile.sourceId);
+          if (source) {
+            runBackupService = new BackupService({ dockerService: createDockerServiceForSource(source), store });
+          }
+        }
+      } catch {
+        // Fall back to default backupService
+      }
+
+      void runBackupService.runProfile(profileId, {
         mode: requestedMode,
         basedOnFullBackupId,
         onProgress: (progressSnapshot) => {
@@ -456,7 +491,20 @@ async function main() {
 
       runJobs.set(runId, job);
 
-      void backupService.restoreBackup(profileId, request.body.backupId, {
+      let restoreBackupService = backupService;
+      try {
+        const restoreProfile = await store.getProfile(profileId);
+        if (restoreProfile?.sourceId) {
+          const source = await store.getSource(restoreProfile.sourceId);
+          if (source) {
+            restoreBackupService = new BackupService({ dockerService: createDockerServiceForSource(source), store });
+          }
+        }
+      } catch {
+        // Fall back to default backupService
+      }
+
+      void restoreBackupService.restoreBackup(profileId, request.body.backupId, {
         selectedContainerIds,
         onProgress: (progressSnapshot) => {
           const currentJob = runJobs.get(runId);
@@ -589,6 +637,107 @@ async function main() {
 
       const parent = dirPath !== '/' ? path.dirname(dirPath) : null;
       response.json({ current: dirPath, parent, dirs });
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Source routes ────────────────────────────────────
+  app.get('/api/sources/check-unix-socket', authMiddleware, async (_request, response) => {
+    try {
+      const socketPath = config.dockerSocketPath;
+      await fs.access(socketPath);
+      const testDs = new DockerService({ socketPath, helperImage: config.helperImage });
+      await testDs.docker.ping();
+      response.json({ available: true, socketPath });
+    } catch {
+      response.json({ available: false, socketPath: config.dockerSocketPath });
+    }
+  });
+
+  app.get('/api/sources', authMiddleware, async (_request, response) => {
+    try {
+      const sources = await store.listSources();
+      response.json(sources);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/sources', authMiddleware, async (request, response) => {
+    try {
+      const payload = request.body || {};
+      if (!payload.name) {
+        return response.status(400).json({ error: 'Informe o nome da origem.' });
+      }
+      if (!['unix-socket', 'direct', 'agent'].includes(payload.type)) {
+        return response.status(400).json({ error: 'Tipo de origem inválido.' });
+      }
+      if ((payload.type === 'direct' || payload.type === 'agent') && !payload.host) {
+        return response.status(400).json({ error: 'Informe o host para este tipo de origem.' });
+      }
+      const existing = payload.id ? await store.getSource(payload.id) : null;
+      const source = await store.saveSource({
+        id: payload.id,
+        createdAt: existing?.createdAt,
+        name: payload.name.trim(),
+        type: payload.type,
+        socketPath: payload.socketPath || null,
+        host: payload.host?.trim() || null,
+        port: payload.port ? Number(payload.port) : null,
+      });
+      response.status(payload.id ? 200 : 201).json(source);
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/sources/:id/impact', authMiddleware, async (request, response) => {
+    try {
+      const impact = await store.sourceImpact(request.params.id);
+      response.json({
+        profileCount: impact.profiles.length,
+        profileNames: impact.profiles.map((p) => p.name),
+        backupCount: impact.backupCount,
+      });
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/sources/:id', authMiddleware, async (request, response) => {
+    try {
+      const sourceId = request.params.id;
+      const impact = await store.sourceImpact(sourceId);
+
+      const slugifyLocal = (value) =>
+        value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'item';
+
+      for (const profile of impact.profiles) {
+        const backups = await store.listBackups(profile.id);
+        const deletedDirs = new Set();
+        for (const backup of backups) {
+          const backupRoot = backup.backupDir;
+          if (!backupRoot) continue;
+          for (const container of backup.containers || []) {
+            if (container.archiveRelativePath) {
+              await fs.rm(path.join(backupRoot, container.archiveRelativePath), { force: true });
+            }
+          }
+          if (profile.name) {
+            deletedDirs.add(path.join(backupRoot, slugifyLocal(profile.name)));
+          }
+        }
+        if (profile.backupDir) {
+          deletedDirs.add(path.join(profile.backupDir, slugifyLocal(profile.name)));
+        }
+        for (const dir of deletedDirs) {
+          await fs.rm(dir, { recursive: true, force: true });
+        }
+      }
+
+      await store.deleteSource(sourceId);
+      response.status(204).end();
     } catch (error) {
       response.status(500).json({ error: error.message });
     }

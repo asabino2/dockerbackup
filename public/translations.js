@@ -175,6 +175,30 @@
     'status.partial': 'Partial',
     'status.error': 'Error',
     'status.running': 'Running',
+
+    'nav.source': 'Origens',
+    'source.title': 'Origens',
+    'source.new': '+ Nova Origem',
+    'source.empty': 'Nenhuma origem configurada.',
+    'source.newSource': 'Nova Origem',
+    'source.name': 'Nome',
+    'source.namePlaceholder': 'Servidor remoto 1',
+    'source.type': 'Tipo de conexão',
+    'source.typeUnixSocket': 'Unix Socket',
+    'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Conexão Direta',
+    'source.typeDirectDesc': 'TCP porta 2375',
+    'source.typeAgent': 'Docker Agent',
+    'source.typeAgentDesc': 'Via agente remoto',
+    'source.host': 'Host',
+    'source.hostPlaceholder': '192.168.1.100',
+    'source.port': 'Porta',
+    'source.socketUnavailable': 'Socket Unix não disponível neste ambiente.',
+    'source.defaultSource': 'Padrão (socket local)',
+    'source.saved': 'Origem salva.',
+    'source.deleted': 'Origem removida.',
+    'source.confirmDelete': 'Excluir esta origem?',
+    'source.save': 'Salvar',
   };
 
   const en = {
@@ -271,6 +295,17 @@
     'restore.confirmPrompt': 'Restore the selected backup for profile',
     'scope.volumes': 'volumes only', 'scope.container': 'entire container',
     'status.completed': 'Completed', 'status.partial': 'Partial', 'status.error': 'Error', 'status.running': 'Running',
+
+    'nav.source': 'Sources',
+    'source.title': 'Sources', 'source.new': '+ New Source', 'source.empty': 'No sources configured.',
+    'source.newSource': 'New Source', 'source.name': 'Name', 'source.namePlaceholder': 'Remote server 1',
+    'source.type': 'Connection type', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Direct Connection', 'source.typeDirectDesc': 'TCP port 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'Via remote agent',
+    'source.host': 'Host', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'Port',
+    'source.socketUnavailable': 'Unix socket not available in this environment.',
+    'source.defaultSource': 'Default (local socket)', 'source.saved': 'Source saved.', 'source.deleted': 'Source removed.',
+    'source.confirmDelete': 'Delete this source?', 'source.save': 'Save',
   };
 
   const es = {
@@ -354,6 +389,17 @@
     'restore.confirmPrompt': 'Restaurar la copia seleccionada para el perfil',
     'scope.volumes': 'solo volúmenes', 'scope.container': 'contenedor completo',
     'status.completed': 'Completado', 'status.partial': 'Parcial', 'status.error': 'Error', 'status.running': 'Ejecutando',
+
+    'nav.source': 'Orígenes',
+    'source.title': 'Orígenes', 'source.new': '+ Nueva Origen', 'source.empty': 'No hay orígenes configurados.',
+    'source.newSource': 'Nueva Origen', 'source.name': 'Nombre', 'source.namePlaceholder': 'Servidor remoto 1',
+    'source.type': 'Tipo de conexión', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Conexión Directa', 'source.typeDirectDesc': 'Puerto TCP 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'Vía agente remoto',
+    'source.host': 'Host', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'Puerto',
+    'source.socketUnavailable': 'Socket Unix no disponible en este entorno.',
+    'source.defaultSource': 'Predeterminado (socket local)', 'source.saved': 'Origen guardado.', 'source.deleted': 'Origen eliminado.',
+    'source.confirmDelete': '¿Eliminar esta origen?', 'source.save': 'Guardar',
   };
 
   const de = {
@@ -436,6 +482,17 @@
     'restore.confirmPrompt': 'Das ausgewählte Backup für das Profil wiederherstellen',
     'scope.volumes': 'nur Volumes', 'scope.container': 'gesamter Container',
     'status.completed': 'Abgeschlossen', 'status.partial': 'Teilweise', 'status.error': 'Fehler', 'status.running': 'Läuft',
+
+    'nav.source': 'Quellen',
+    'source.title': 'Quellen', 'source.new': '+ Neue Quelle', 'source.empty': 'Keine Quellen konfiguriert.',
+    'source.newSource': 'Neue Quelle', 'source.name': 'Name', 'source.namePlaceholder': 'Remote-Server 1',
+    'source.type': 'Verbindungstyp', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Direkte Verbindung', 'source.typeDirectDesc': 'TCP-Port 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'Über Remote-Agent',
+    'source.host': 'Host', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'Port',
+    'source.socketUnavailable': 'Unix-Socket in dieser Umgebung nicht verfügbar.',
+    'source.defaultSource': 'Standard (lokaler Socket)', 'source.saved': 'Quelle gespeichert.', 'source.deleted': 'Quelle entfernt.',
+    'source.confirmDelete': 'Diese Quelle löschen?', 'source.save': 'Speichern',
   };
 
   const pl = {
@@ -519,6 +576,17 @@
     'restore.confirmPrompt': 'Przywróć wybraną kopię dla profilu',
     'scope.volumes': 'tylko woluminy', 'scope.container': 'cały kontener',
     'status.completed': 'Zakończono', 'status.partial': 'Częściowe', 'status.error': 'Błąd', 'status.running': 'Uruchomione',
+
+    'nav.source': 'Źródła',
+    'source.title': 'Źródła', 'source.new': '+ Nowe źródło', 'source.empty': 'Brak skonfigurowanych źródeł.',
+    'source.newSource': 'Nowe źródło', 'source.name': 'Nazwa', 'source.namePlaceholder': 'Zdalny serwer 1',
+    'source.type': 'Typ połączenia', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Bezpośrednie połączenie', 'source.typeDirectDesc': 'Port TCP 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'Przez zdalnego agenta',
+    'source.host': 'Host', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'Port',
+    'source.socketUnavailable': 'Socket Unix niedostępny w tym środowisku.',
+    'source.defaultSource': 'Domyślny (lokalny socket)', 'source.saved': 'Źródło zapisane.', 'source.deleted': 'Źródło usunięte.',
+    'source.confirmDelete': 'Usunąć to źródło?', 'source.save': 'Zapisz',
   };
 
   const it = {
@@ -602,6 +670,17 @@
     'restore.confirmPrompt': 'Ripristina il backup selezionato per il profilo',
     'scope.volumes': 'solo volumi', 'scope.container': 'container completo',
     'status.completed': 'Completato', 'status.partial': 'Parziale', 'status.error': 'Errore', 'status.running': 'In esecuzione',
+
+    'nav.source': 'Sorgenti',
+    'source.title': 'Sorgenti', 'source.new': '+ Nuova sorgente', 'source.empty': 'Nessuna sorgente configurata.',
+    'source.newSource': 'Nuova sorgente', 'source.name': 'Nome', 'source.namePlaceholder': 'Server remoto 1',
+    'source.type': 'Tipo di connessione', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Connessione diretta', 'source.typeDirectDesc': 'Porta TCP 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'Tramite agente remoto',
+    'source.host': 'Host', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'Porta',
+    'source.socketUnavailable': 'Socket Unix non disponibile in questo ambiente.',
+    'source.defaultSource': 'Predefinito (socket locale)', 'source.saved': 'Sorgente salvata.', 'source.deleted': 'Sorgente rimossa.',
+    'source.confirmDelete': 'Eliminare questa sorgente?', 'source.save': 'Salva',
   };
 
   const ru = {
@@ -685,6 +764,17 @@
     'restore.confirmPrompt': 'Восстановить выбранную копию для профиля',
     'scope.volumes': 'только тома', 'scope.container': 'весь контейнер',
     'status.completed': 'Завершено', 'status.partial': 'Частично', 'status.error': 'Ошибка', 'status.running': 'Выполняется',
+
+    'nav.source': 'Источники',
+    'source.title': 'Источники', 'source.new': '+ Новый источник', 'source.empty': 'Источники не настроены.',
+    'source.newSource': 'Новый источник', 'source.name': 'Название', 'source.namePlaceholder': 'Удалённый сервер 1',
+    'source.type': 'Тип подключения', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'Прямое подключение', 'source.typeDirectDesc': 'TCP порт 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'Через удалённый агент',
+    'source.host': 'Хост', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'Порт',
+    'source.socketUnavailable': 'Unix Socket недоступен в этой среде.',
+    'source.defaultSource': 'По умолчанию (локальный сокет)', 'source.saved': 'Источник сохранён.', 'source.deleted': 'Источник удалён.',
+    'source.confirmDelete': 'Удалить этот источник?', 'source.save': 'Сохранить',
   };
 
   const zh = {
@@ -767,6 +857,17 @@
     'restore.confirmPrompt': '恢复所选备份到配置',
     'scope.volumes': '仅卷', 'scope.container': '整个容器',
     'status.completed': '已完成', 'status.partial': '部分完成', 'status.error': '错误', 'status.running': '运行中',
+
+    'nav.source': '来源',
+    'source.title': '来源', 'source.new': '+ 新来源', 'source.empty': '没有配置来源。',
+    'source.newSource': '新来源', 'source.name': '名称', 'source.namePlaceholder': '远程服务器 1',
+    'source.type': '连接类型', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': '直接连接', 'source.typeDirectDesc': 'TCP 端口 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': '通过远程代理',
+    'source.host': '主机', 'source.hostPlaceholder': '192.168.1.100', 'source.port': '端口',
+    'source.socketUnavailable': '此环境中 Unix Socket 不可用。',
+    'source.defaultSource': '默认（本地 Socket）', 'source.saved': '来源已保存。', 'source.deleted': '来源已删除。',
+    'source.confirmDelete': '删除此来源？', 'source.save': '保存',
   };
 
   const ja = {
@@ -850,6 +951,17 @@
     'restore.confirmPrompt': 'プロファイルの選択したバックアップを復元',
     'scope.volumes': 'ボリュームのみ', 'scope.container': 'コンテナ全体',
     'status.completed': '完了', 'status.partial': '部分的', 'status.error': 'エラー', 'status.running': '実行中',
+
+    'nav.source': 'ソース',
+    'source.title': 'ソース', 'source.new': '+ 新しいソース', 'source.empty': 'ソースが設定されていません。',
+    'source.newSource': '新しいソース', 'source.name': '名前', 'source.namePlaceholder': 'リモートサーバー 1',
+    'source.type': '接続タイプ', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': '直接接続', 'source.typeDirectDesc': 'TCP ポート 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'リモートエージェント経由',
+    'source.host': 'ホスト', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'ポート',
+    'source.socketUnavailable': 'この環境では Unix Socket は使用できません。',
+    'source.defaultSource': 'デフォルト（ローカルソケット）', 'source.saved': 'ソースが保存されました。', 'source.deleted': 'ソースが削除されました。',
+    'source.confirmDelete': 'このソースを削除しますか？', 'source.save': '保存',
   };
 
   const fa = {
@@ -933,6 +1045,17 @@
     'restore.confirmPrompt': 'بازیابی پشتیبان انتخاب‌شده برای پروفایل',
     'scope.volumes': 'فقط والیوم‌ها', 'scope.container': 'کل کانتینر',
     'status.completed': 'تکمیل شد', 'status.partial': 'ناقص', 'status.error': 'خطا', 'status.running': 'در حال اجرا',
+
+    'nav.source': 'منابع',
+    'source.title': 'منابع', 'source.new': '+ منبع جدید', 'source.empty': 'هیچ منبعی پیکربندی نشده.',
+    'source.newSource': 'منبع جدید', 'source.name': 'نام', 'source.namePlaceholder': 'سرور راه دور ۱',
+    'source.type': 'نوع اتصال', 'source.typeUnixSocket': 'Unix Socket', 'source.typeUnixSocketDesc': '/var/run/docker.sock',
+    'source.typeDirect': 'اتصال مستقیم', 'source.typeDirectDesc': 'پورت TCP 2375',
+    'source.typeAgent': 'Docker Agent', 'source.typeAgentDesc': 'از طریق عامل راه دور',
+    'source.host': 'هاست', 'source.hostPlaceholder': '192.168.1.100', 'source.port': 'پورت',
+    'source.socketUnavailable': 'Unix Socket در این محیط در دسترس نیست.',
+    'source.defaultSource': 'پیش‌فرض (سوکت محلی)', 'source.saved': 'منبع ذخیره شد.', 'source.deleted': 'منبع حذف شد.',
+    'source.confirmDelete': 'این منبع حذف شود؟', 'source.save': 'ذخیره',
   };
 
   window.TRANSLATIONS = { 'pt-BR': ptBR, en, es, de, pl, it, ru, zh, ja, fa };

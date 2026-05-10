@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.1.6-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.2.0-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -22,7 +22,12 @@ Versão atual: **0.1.4**
 
 ---
 
-## � Changelog
+## � Changelog### [0.2.0] — 2026-05-11
+
+#### Adicionado
+- **Aba Source (Origens):** nova aba acima de Storage Locations para gerenciar origens de conexão Docker, com suporte a Unix socket, conexão direta (TCP porta 2375) e Docker Agent
+- **Cascade de exclusão de source:** ao remover uma origem, todos os profiles e backups associados são automaticamente removidos
+- **Seleção de source no profile:** cada backup profile pode ser vinculado a uma origem Docker específica
 ### [0.1.6] — 2026-05-11
 
 #### Corrigido

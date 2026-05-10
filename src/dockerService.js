@@ -59,8 +59,12 @@ function shellQuote(value) {
 }
 
 class DockerService {
-  constructor({ socketPath, helperImage }) {
-    this.docker = new Docker({ socketPath });
+  constructor({ socketPath, host, port, helperImage }) {
+    if (host) {
+      this.docker = new Docker({ host, port: port || 2375, protocol: 'http' });
+    } else {
+      this.docker = new Docker({ socketPath: socketPath || '/var/run/docker.sock' });
+    }
     this.helperImage = helperImage;
     this.runningInContainer = detectRunningInContainer();
     this._selfMounts = null; // cache dos mounts do próprio container

@@ -28,6 +28,12 @@
             </button>
           </li>
           <li>
+            <button class="nav-item" data-view="source">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              <span data-i18n="nav.source">Origens</span>
+            </button>
+          </li>
+          <li>
             <button class="nav-item" data-view="storage">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
               <span>Storage Locations</span>
@@ -223,6 +229,17 @@
           </div>
         </div>
 
+        <!-- VIEW: Source (Origens) -->
+        <div id="view-source" class="view hidden">
+          <div class="page-header">
+            <h1 class="page-title" data-i18n="source.title">Origens</h1>
+            <button id="openCreateSourceModal" class="btn btn--primary" data-i18n="source.new">+ Nova Origem</button>
+          </div>
+          <div class="card" id="sourceCard">
+            <div id="sourcesList"></div>
+          </div>
+        </div>
+
         <!-- VIEW: Storage Locations -->
         <div id="view-storage" class="view hidden">
           <div class="page-header">
@@ -404,6 +421,13 @@
             </select>
           </div>
 
+          <div class="form-field">
+            <label for="profileSourceId" data-i18n="source.title">Origem Docker</label>
+            <select id="profileSourceId" name="sourceId">
+              <option value="" data-i18n="source.defaultSource">Padrão (socket local)</option>
+            </select>
+          </div>
+
           <fieldset class="form-fieldset">
             <legend>Escopo do backup</legend>
             <div class="radio-grid">
@@ -449,6 +473,65 @@
         <div class="modal-actions">
           <button id="fullBackupPickerConfirm" class="btn btn--primary" type="button">Confirmar</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal: Criar/Editar Source (Origem) -->
+    <div id="sourceFormModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-source-modal"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="sourceModalTitle">
+        <div class="modal-header">
+          <h3 id="sourceModalTitle" data-i18n="source.newSource">Nova Origem</h3>
+          <button id="sourceModalClose" class="btn btn--ghost btn--sm" type="button" data-action="close-source-modal">Fechar</button>
+        </div>
+        <form id="sourceForm" class="profile-form">
+          <input type="hidden" id="sourceFormId" />
+
+          <div class="form-field">
+            <label for="sourceFormName" data-i18n="source.name">Nome</label>
+            <input id="sourceFormName" type="text" placeholder="Docker Local" required />
+          </div>
+
+          <fieldset class="form-fieldset">
+            <legend data-i18n="source.type">Tipo de conexão</legend>
+            <div class="radio-grid">
+              <label class="radio-card" id="unixSocketRadioCard">
+                <input type="radio" name="sourceType" value="unix-socket" id="sourceTypeUnixSocket" />
+                <span data-i18n="source.typeUnixSocket">Unix Socket</span>
+                <small data-i18n="source.typeUnixSocketDesc">/var/run/docker.sock</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="sourceType" value="direct" id="sourceTypeDirect" checked />
+                <span data-i18n="source.typeDirect">Conexão Direta</span>
+                <small data-i18n="source.typeDirectDesc">TCP porta 2375</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="sourceType" value="agent" id="sourceTypeAgent" />
+                <span data-i18n="source.typeAgent">Docker Agent</span>
+                <small data-i18n="source.typeAgentDesc">Via agente remoto</small>
+              </label>
+            </div>
+            <p id="unixSocketUnavailableMsg" class="form-hint form-hint--warn hidden" data-i18n="source.socketUnavailable">
+              Socket Unix não disponível neste ambiente.
+            </p>
+          </fieldset>
+
+          <div id="sourceHostFields">
+            <div class="form-field">
+              <label for="sourceFormHost" data-i18n="source.host">Host</label>
+              <input id="sourceFormHost" type="text" placeholder="192.168.1.100" />
+            </div>
+            <div class="form-field">
+              <label for="sourceFormPort" data-i18n="source.port">Porta</label>
+              <input id="sourceFormPort" type="number" placeholder="2375" min="1" max="65535" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--primary" type="submit" data-i18n="source.save">Salvar</button>
+            <button class="btn btn--secondary" type="button" id="cancelSourceForm">Cancelar</button>
+          </div>
+        </form>
       </div>
     </div>
 

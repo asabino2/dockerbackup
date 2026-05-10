@@ -56,6 +56,7 @@ const state = {
   profiles: [],
   storageLocations: [],
   schedules: [],
+  sources: [],
   activeRuns: new Map(),
   volumeSelections: {},
 };
@@ -94,6 +95,14 @@ const elements = {
   storageLocationDir: document.querySelector('#storageLocationDir'),
   storageLocationIdField: document.querySelector('#storageFormId'),
   storageLocationsList: document.querySelector('#storageLocationsList'),
+  sourceFormModal: document.querySelector('#sourceFormModal'),
+  sourceForm: document.querySelector('#sourceForm'),
+  sourceFormId: document.querySelector('#sourceFormId'),
+  sourceFormName: document.querySelector('#sourceFormName'),
+  sourceFormHost: document.querySelector('#sourceFormHost'),
+  sourceFormPort: document.querySelector('#sourceFormPort'),
+  sourcesList: document.querySelector('#sourcesList'),
+  profileSourceSelect: document.querySelector('#profileSourceId'),
 };
 
 // ─── View navigation ──────────────────────────────────────
@@ -123,6 +132,9 @@ function navigateTo(viewName) {
   }
   if (viewName === 'storage') {
     loadStorageLocations();
+  }
+  if (viewName === 'source') {
+    loadSources();
   }
   if (viewName === 'settings') {
     loadSettingsView();
@@ -156,6 +168,7 @@ function closeProfileModal() {
 document.querySelector('#openCreateProfileModal')?.addEventListener('click', () => {
   resetForm();
   populateStorageLocationDropdown();
+  populateSourceDropdown();
   openProfileModal('Novo Profile');
 });
 
@@ -288,8 +301,204 @@ elements.storageLocationsList?.addEventListener('click', async (e) => {
   }
 });
 
-// ─── Directory Browser Modal ──────────────────────────────
-let _dirBrowserCurrentPath = '/';
+// ─── Sources ──────────────────────────────────────────────
+const SOURCE_TYPE_LABELS = {
+  'unix-socket': 'Unix Socket',
+  'direct': 'Direto (TCP)',
+  'agent': 'Docker Agent',
+};
+
+let _unixSocketAvailable = false;
+
+async function checkUnixSocket() {
+  try {
+    const result = await api('/api/sources/check-unix-socket');
+    _unixSocketAvailable = result.available === true;
+  } catch {
+    _unixSocketAvailable = false;
+  }
+  const card = document.querySelector('#unixSocketRadioCard');
+  const msg = document.querySelector('#unixSocketUnavailableMsg');
+  const radio = document.querySelector('#sourceTypeUnixSocket');
+  if (card) card.style.opacity = _unixSocketAvailable ? '' : '0.45';
+  if (radio) radio.disabled = !_unixSocketAvailable;
+  if (msg) msg.classList.toggle('hidden', _unixSocketAvailable);
+}
+
+async function loadSources() {
+  try {
+    state.sources = await api('/api/sources');
+    renderSourcesList();
+    populateSourceDropdown();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function renderSourcesList() {
+  const list = elements.sourcesList;
+  if (!list) return;
+
+  if (!state.sources.length) {
+    list.innerHTML = '<p class="empty-state" data-i18n="source.empty">Nenhuma origem configurada. Crie uma para poder conectar a diferentes hosts Docker.</p>';
+    applyTranslations();
+    return;
+  }
+
+  list.innerHTML = `
+    <table class="data-table">
+      <thead><tr><th data-i18n="source.name">Nome</th><th data-i18n="source.type">Tipo</th><th>Conexão</th><th>Ações</th></tr></thead>
+      <tbody>
+        ${state.sources.map((src) => {
+          const connInfo = src.type === 'unix-socket'
+            ? (src.socketPath || '/var/run/docker.sock')
+            : `${src.host || '—'}:${src.port || 2375}`;
+          return `
+            <tr>
+              <td><strong>${escapeHtml(src.name)}</strong></td>
+              <td>${escapeHtml(SOURCE_TYPE_LABELS[src.type] || src.type)}</td>
+              <td><code>${escapeHtml(connInfo)}</code></td>
+              <td>
+                <button class="btn btn--ghost btn--sm" data-source-action="delete" data-source-id="${escapeHtml(src.id)}">Excluir</button>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+  applyTranslations();
+}
+
+function populateSourceDropdown() {
+  const select = elements.profileSourceSelect;
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">Padrão (socket local)</option>` +
+    state.sources.map((src) =>
+      `<option value="${escapeHtml(src.id)}">${escapeHtml(src.name)} — ${escapeHtml(SOURCE_TYPE_LABELS[src.type] || src.type)}</option>`
+    ).join('');
+  if (current) select.value = current;
+}
+
+function openSourceModal() {
+  document.querySelector('#sourceModalTitle').textContent = 'Nova Origem';
+  elements.sourceForm?.reset();
+  if (elements.sourceFormId) elements.sourceFormId.value = '';
+  // Default to 'direct' type
+  const directRadio = document.querySelector('#sourceTypeDirect');
+  if (directRadio) directRadio.checked = true;
+  updateSourceTypeFields('direct');
+  elements.sourceFormModal?.classList.remove('hidden');
+  elements.sourceFormModal?.setAttribute('aria-hidden', 'false');
+  checkUnixSocket();
+}
+
+function closeSourceModal() {
+  elements.sourceFormModal?.classList.add('hidden');
+  elements.sourceFormModal?.setAttribute('aria-hidden', 'true');
+}
+
+function updateSourceTypeFields(type) {
+  const hostFields = document.querySelector('#sourceHostFields');
+  if (!hostFields) return;
+  if (type === 'unix-socket') {
+    hostFields.classList.add('hidden');
+  } else {
+    hostFields.classList.remove('hidden');
+    const portInput = elements.sourceFormPort;
+    if (portInput && !portInput.value) {
+      portInput.value = type === 'agent' ? '9000' : '2375';
+    }
+  }
+}
+
+async function saveSource(event) {
+  event.preventDefault();
+  const type = document.querySelector('input[name="sourceType"]:checked')?.value;
+  if (!type) {
+    showToast('Selecione o tipo de origem.', true);
+    return;
+  }
+
+  const payload = {
+    id: elements.sourceFormId?.value || undefined,
+    name: elements.sourceFormName?.value.trim(),
+    type,
+    host: type !== 'unix-socket' ? elements.sourceFormHost?.value.trim() : undefined,
+    port: type !== 'unix-socket' ? (Number(elements.sourceFormPort?.value) || null) : undefined,
+    socketPath: type === 'unix-socket' ? '/var/run/docker.sock' : undefined,
+  };
+
+  try {
+    await api('/api/sources', { method: 'POST', body: JSON.stringify(payload) });
+    closeSourceModal();
+    await loadSources();
+    showToast(t('source.saved'));
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+document.querySelector('#openCreateSourceModal')?.addEventListener('click', openSourceModal);
+document.querySelector('#cancelSourceForm')?.addEventListener('click', closeSourceModal);
+document.querySelector('#sourceModalClose')?.addEventListener('click', closeSourceModal);
+elements.sourceFormModal?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-source-modal"]')) closeSourceModal();
+});
+elements.sourceForm?.addEventListener('submit', saveSource);
+
+document.querySelectorAll('input[name="sourceType"]').forEach((radio) => {
+  radio.addEventListener('change', (e) => updateSourceTypeFields(e.target.value));
+});
+
+elements.sourcesList?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-source-action="delete"]');
+  if (!btn) return;
+  const id = btn.dataset.sourceId;
+
+  let impact = { profileCount: 0, profileNames: [], backupCount: 0 };
+  try {
+    impact = await api(`/api/sources/${id}/impact`);
+  } catch {
+    // Non-fatal
+  }
+
+  let message = t('source.confirmDelete');
+  if (impact.profileCount > 0) {
+    const names = impact.profileNames.map((n) => `• ${n}`).join('\n');
+    message =
+      `⚠️ ATENÇÃO: Esta ação também irá excluir permanentemente:\n\n` +
+      `  ${impact.profileCount} profile(s) de backup:\n${names}\n\n` +
+      `  ${impact.backupCount} backup(s) registrado(s) desses profiles\n\n` +
+      `Deseja continuar?`;
+  }
+
+  if (!window.confirm(message)) return;
+  try {
+    await api(`/api/sources/${id}`, { method: 'DELETE' });
+    await Promise.all([loadSources(), loadProfiles()]);
+    showToast(impact.profileCount > 0
+      ? `Origem removida junto com ${impact.profileCount} profile(s) e ${impact.backupCount} backup(s).`
+      : t('source.deleted'));
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+// When source changes in profile form, reload containers for that source
+elements.profileSourceSelect?.addEventListener('change', async () => {
+  const sourceId = elements.profileSourceSelect.value || null;
+  const url = sourceId ? `/api/containers?sourceId=${encodeURIComponent(sourceId)}` : '/api/containers';
+  try {
+    state.containers = await api(url);
+    renderContainers();
+  } catch {
+    // Non-fatal
+  }
+});
+
+// ─── Directory Browser Modal ──────────────────────────────let _dirBrowserCurrentPath = '/';
 
 function openDirBrowser() {
   const initial = elements.storageLocationDir.value.trim() || '/';
@@ -1170,8 +1379,12 @@ function fillForm(profile) {
   elements.profileId.value = profile.id;
   elements.profileName.value = profile.name;
   populateStorageLocationDropdown();
+  populateSourceDropdown();
   if (profile.storageLocationId) {
     elements.storageLocationSelect.value = profile.storageLocationId;
+  }
+  if (elements.profileSourceSelect) {
+    elements.profileSourceSelect.value = profile.sourceId || '';
   }
   const backupScope = profile.backupScope === 'container' ? 'container' : 'volumes';
   document.querySelector(`input[name="backupScope"][value="${backupScope}"]`).checked = true;
@@ -1220,6 +1433,7 @@ async function saveProfile(event) {
     id: elements.profileId.value || undefined,
     name: elements.profileName.value,
     storageLocationId,
+    sourceId: elements.profileSourceSelect?.value || undefined,
     containerIds: selectedContainerIds,
     backupScope,
     volumeSelections,
@@ -1929,7 +2143,7 @@ document.querySelector('#aboutUpdateBtn')?.addEventListener('click', async () =>
 async function init() {
   applyTranslations();
   try {
-    await Promise.all([loadContainers(), loadProfiles(), loadStorageLocations()]);
+    await Promise.all([loadContainers(), loadProfiles(), loadStorageLocations(), loadSources()]);
     await updateDashboard();
   } catch (error) {
     showToast(error.message, true);

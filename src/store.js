@@ -24,6 +24,7 @@ class JsonStore {
     parsed.backups ||= [];
     parsed.storageLocations ||= [];
     parsed.schedules ||= [];
+    parsed.sources ||= [];
     parsed.settings ||= {};
     return parsed;
   }
@@ -60,6 +61,7 @@ class JsonStore {
       volumeSelections: profileInput.volumeSelections || {},
       backupDir: profileInput.backupDir,
       storageLocationId: profileInput.storageLocationId || null,
+      sourceId: profileInput.sourceId || null,
       updatedAt: now,
       createdAt: profileInput.createdAt || now,
     };
@@ -254,6 +256,63 @@ class JsonStore {
   async deleteSchedule(scheduleId) {
     await this.write((data) => {
       data.schedules = (data.schedules || []).filter((s) => s.id !== scheduleId);
+      return data;
+    });
+  }
+
+  async listSources() {
+    const data = await this.read();
+    return data.sources;
+  }
+
+  async getSource(sourceId) {
+    const data = await this.read();
+    return data.sources.find((s) => s.id === sourceId) || null;
+  }
+
+  async saveSource(input) {
+    const now = new Date().toISOString();
+    const source = {
+      id: input.id || randomUUID(),
+      name: input.name,
+      type: input.type,
+      socketPath: input.socketPath || null,
+      host: input.host || null,
+      port: input.port ? Number(input.port) : null,
+      updatedAt: now,
+      createdAt: input.createdAt || now,
+    };
+
+    await this.write((data) => {
+      data.sources ||= [];
+      const index = data.sources.findIndex((item) => item.id === source.id);
+      if (index >= 0) {
+        data.sources[index] = source;
+      } else {
+        data.sources.push(source);
+      }
+      return data;
+    });
+
+    return source;
+  }
+
+  async sourceImpact(sourceId) {
+    const data = await this.read();
+    const profiles = data.profiles.filter((p) => p.sourceId === sourceId);
+    const profileIds = new Set(profiles.map((p) => p.id));
+    const backupCount = data.backups.filter((b) => profileIds.has(b.profileId)).length;
+    return { profiles, backupCount };
+  }
+
+  async deleteSource(sourceId) {
+    await this.write((data) => {
+      const profileIds = new Set(
+        data.profiles.filter((p) => p.sourceId === sourceId).map((p) => p.id),
+      );
+      data.backups = data.backups.filter((b) => !profileIds.has(b.profileId));
+      data.profiles = data.profiles.filter((p) => !profileIds.has(p.id));
+      data.sources = (data.sources || []).filter((item) => item.id !== sourceId);
       return data;
     });
   }

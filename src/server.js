@@ -2,8 +2,9 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs/promises');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
+const os = require('os');
 
 const execFileAsync = promisify(execFile);
 
@@ -974,6 +975,143 @@ async function main() {
 
   setInterval(() => runScheduledJobs().catch(console.error), 60_000);
   setTimeout(() => runScheduledJobs().catch(console.error), 10_000);
+
+  // ─── Backup file browser ──────────────────────────────────
+  function resolveArchivePath(profile, containerBackup) {
+    if (!profile || !profile.backupDir || !containerBackup || !containerBackup.archiveRelativePath) return null;
+    const parts = containerBackup.archiveRelativePath.split('/');
+    return path.join(profile.backupDir, ...parts);
+  }
+
+  async function listTarFiles(archivePath) {
+    const { stdout } = await execFileAsync('tar', ['-tvzf', archivePath], { maxBuffer: 100 * 1024 * 1024 });
+    const files = [];
+    for (const line of stdout.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // GNU tar verbose: permissions owner size date time name
+      const parts = trimmed.split(/\s+/);
+      if (parts.length < 6) continue;
+      const perms = parts[0];
+      const size = parseInt(parts[2], 10) || 0;
+      const mtime = `${parts[3]} ${parts[4]}`;
+      const name = parts.slice(5).join(' ').replace(/^\.\//, '');
+      if (!name || name === '.' || name.endsWith('/')) continue;
+      files.push({ name, size, isDir: perms.startsWith('d'), mtime });
+    }
+    return files;
+  }
+
+  // GET /api/backups/:backupId/containers/:containerId/files
+  app.get('/api/backups/:backupId/containers/:containerId/files', authMiddleware, async (request, response) => {
+    try {
+      const backup = await store.getBackup(request.params.backupId);
+      if (!backup) { response.status(404).json({ error: 'Backup não encontrado.' }); return; }
+
+      const profile = await store.getProfile(backup.profileId);
+      if (!profile) { response.status(404).json({ error: 'Profile não encontrado.' }); return; }
+
+      const containerId = request.params.containerId;
+      const chain = await store.getBackupsForContainer(backup.profileId, containerId, request.params.backupId);
+      if (!chain.length) { response.status(404).json({ error: 'Container não encontrado neste backup.' }); return; }
+
+      // Merge file listings across chain (later archives overwrite earlier ones for same path)
+      const fileMap = new Map();
+      for (const cb of chain) {
+        const archivePath = resolveArchivePath(profile, cb);
+        if (!archivePath) continue;
+        try {
+          const files = await listTarFiles(archivePath);
+          for (const file of files) fileMap.set(file.name, file);
+        } catch { /* archive not accessible */ }
+      }
+
+      const files = [...fileMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+      response.json({ files, chainLength: chain.length });
+    } catch (error) {
+      response.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/backups/:backupId/containers/:containerId/extract
+  app.post('/api/backups/:backupId/containers/:containerId/extract', authMiddleware, async (request, response) => {
+    let tmpDir = null;
+    try {
+      const selectedPaths = request.body?.paths;
+      if (!Array.isArray(selectedPaths) || !selectedPaths.length) {
+        response.status(400).json({ error: 'Selecione ao menos um arquivo para extrair.' }); return;
+      }
+      // Sanitize: strip leading slashes, null bytes, traversal sequences
+      const safePaths = selectedPaths
+        .map((p) => String(p).replace(/\0/g, '').replace(/^\/+/, '').replace(/\.\.\//g, ''))
+        .filter((p) => p.length > 0 && !p.includes('\0'));
+      if (!safePaths.length) { response.status(400).json({ error: 'Caminhos inválidos.' }); return; }
+
+      const backup = await store.getBackup(request.params.backupId);
+      if (!backup) { response.status(404).json({ error: 'Backup não encontrado.' }); return; }
+
+      const profile = await store.getProfile(backup.profileId);
+      if (!profile) { response.status(404).json({ error: 'Profile não encontrado.' }); return; }
+
+      const containerId = request.params.containerId;
+      const chain = await store.getBackupsForContainer(backup.profileId, containerId, request.params.backupId);
+      if (!chain.length) { response.status(404).json({ error: 'Container não encontrado neste backup.' }); return; }
+
+      // For each selected path, find latest archive in chain containing it
+      const archiveExtractMap = new Map(); // archivePath → [paths]
+      for (const selectedPath of safePaths) {
+        for (let i = chain.length - 1; i >= 0; i--) {
+          const archivePath = resolveArchivePath(profile, chain[i]);
+          if (!archivePath) continue;
+          try {
+            const files = await listTarFiles(archivePath);
+            const found = files.some((f) => f.name === selectedPath || f.name.startsWith(selectedPath + '/'));
+            if (found) {
+              if (!archiveExtractMap.has(archivePath)) archiveExtractMap.set(archivePath, []);
+              archiveExtractMap.get(archivePath).push(selectedPath);
+              break;
+            }
+          } catch { continue; }
+        }
+      }
+
+      if (!archiveExtractMap.size) {
+        response.status(404).json({ error: 'Arquivos não encontrados nos archives.' }); return;
+      }
+
+      tmpDir = path.join(os.tmpdir(), `dbkp-extract-${crypto.randomUUID()}`);
+      await fs.mkdir(tmpDir, { recursive: true });
+
+      for (const [archivePath, pathsToExtract] of archiveExtractMap) {
+        await execFileAsync('tar', ['-xzf', archivePath, '-C', tmpDir, '--', ...pathsToExtract], {
+          maxBuffer: 500 * 1024 * 1024,
+        }).catch(() => null);
+      }
+
+      const containerName = (chain[0]?.containerName || containerId.slice(0, 12)).replace(/[^a-zA-Z0-9_-]/g, '-');
+      const filename = `extract-${containerName}.tar.gz`;
+
+      response.setHeader('Content-Type', 'application/gzip');
+      response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      const tarProc = spawn('tar', ['-czf', '-', '-C', tmpDir, '.'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      tarProc.stdout.pipe(response);
+
+      const cleanup = async () => {
+        if (tmpDir) {
+          const dirToRemove = tmpDir;
+          tmpDir = null;
+          await fs.rm(dirToRemove, { recursive: true, force: true }).catch(() => null);
+        }
+      };
+      tarProc.on('close', cleanup);
+      tarProc.on('error', cleanup);
+      response.on('close', cleanup);
+    } catch (error) {
+      if (tmpDir) await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => null);
+      if (!response.headersSent) response.status(500).json({ error: error.message });
+    }
+  });
 
   app.listen(config.port, () => {
     console.log(`Docker Backup app ouvindo na porta ${config.port}`);

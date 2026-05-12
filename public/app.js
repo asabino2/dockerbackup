@@ -119,6 +119,17 @@ const elements = {
   sourceFormPort: document.querySelector('#sourceFormPort'),
   sourcesList: document.querySelector('#sourcesList'),
   profileSourceSelect: document.querySelector('#profileSourceId'),
+  // snapshot modal
+  snapshotModal: document.querySelector('#snapshotModal'),
+  snapshotModalSubtitle: document.querySelector('#snapshotModalSubtitle'),
+  snapshotContainerTabs: document.querySelector('#snapshotContainerTabs'),
+  snapshotSearch: document.querySelector('#snapshotSearch'),
+  snapshotStats: document.querySelector('#snapshotStats'),
+  snapshotLoading: document.querySelector('#snapshotLoading'),
+  snapshotFileList: document.querySelector('#snapshotFileList'),
+  snapshotSelectAll: document.querySelector('#snapshotSelectAll'),
+  snapshotExtract: document.querySelector('#snapshotExtract'),
+  snapshotModalClose: document.querySelector('#snapshotModalClose'),
 };
 
 // ─── View navigation ──────────────────────────────────────
@@ -776,6 +787,220 @@ function renderServers() {
   // Servers view was removed
 }
 
+// ─── Snapshot modal (browse de arquivos do backup) ───────────
+
+const snapshotState = {
+  backup: null,
+  profile: null,
+  activeContainerId: null,
+  filesByContainer: {},
+};
+
+async function openSnapshotModal(backupId, profileId) {
+  snapshotState.backup = null;
+  snapshotState.filesByContainer = {};
+  snapshotState.activeContainerId = null;
+
+  let backup;
+  try {
+    backup = await api(`/api/backups/${encodeURIComponent(backupId)}`);
+  } catch (error) {
+    showToast(`Erro ao carregar backup: ${error.message}`, true);
+    return;
+  }
+
+  const profile = state.profiles.find((p) => p.id === profileId) || { id: profileId, name: profileId };
+  snapshotState.backup = backup;
+  snapshotState.profile = profile;
+
+  const modeLabel = backup.mode === 'full' ? 'Full' : 'Incremental';
+  elements.snapshotModalSubtitle.textContent =
+    `${escapeHtml(profile.name)} — ${new Date(backup.createdAt).toLocaleString('pt-BR')} — ${modeLabel}`;
+
+  const containers = (backup.containers || []).filter((c) => c.status === 'ok' && c.archiveRelativePath);
+  if (!containers.length) {
+    showToast('Backup sem containers com arquivos disponíveis.', true);
+    return;
+  }
+
+  elements.snapshotSearch.value = '';
+  elements.snapshotFileList.innerHTML = '';
+  elements.snapshotStats.textContent = '';
+  elements.snapshotExtract.disabled = true;
+  elements.snapshotExtract.textContent = 'Extrair selecionados';
+
+  // Build container tabs
+  if (containers.length > 1) {
+    elements.snapshotContainerTabs.classList.remove('hidden');
+    elements.snapshotContainerTabs.innerHTML = containers.map((c, i) => `
+      <button class="snapshot-tab${i === 0 ? ' active' : ''}"
+        data-container-id="${escapeHtml(c.containerId)}">${escapeHtml(c.containerName)}</button>
+    `).join('');
+    elements.snapshotContainerTabs.querySelectorAll('.snapshot-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        elements.snapshotContainerTabs.querySelectorAll('.snapshot-tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadSnapshotContainerFiles(btn.dataset.containerId);
+      });
+    });
+  } else {
+    elements.snapshotContainerTabs.classList.add('hidden');
+  }
+
+  elements.snapshotModal.classList.remove('hidden');
+  elements.snapshotModal.setAttribute('aria-hidden', 'false');
+
+  await loadSnapshotContainerFiles(containers[0].containerId);
+}
+
+async function loadSnapshotContainerFiles(containerId) {
+  snapshotState.activeContainerId = containerId;
+  elements.snapshotLoading.classList.remove('hidden');
+  elements.snapshotFileList.innerHTML = '';
+  elements.snapshotStats.textContent = '';
+  elements.snapshotExtract.disabled = true;
+  elements.snapshotExtract.textContent = 'Extrair selecionados';
+  elements.snapshotSearch.value = '';
+
+  try {
+    if (!snapshotState.filesByContainer[containerId]) {
+      const result = await api(
+        `/api/backups/${encodeURIComponent(snapshotState.backup.id)}/containers/${encodeURIComponent(containerId)}/files`,
+      );
+      snapshotState.filesByContainer[containerId] = result;
+    }
+    elements.snapshotLoading.classList.add('hidden');
+    renderSnapshotFiles(snapshotState.filesByContainer[containerId].files, '');
+  } catch (error) {
+    elements.snapshotLoading.classList.add('hidden');
+    elements.snapshotFileList.innerHTML = `<div class="snapshot-empty">Erro ao carregar: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderSnapshotFiles(files, filter) {
+  const lc = filter.toLowerCase();
+  const visible = filter ? files.filter((f) => !f.isDir && f.name.toLowerCase().includes(lc)) : files.filter((f) => !f.isDir);
+
+  const fileCount = visible.length;
+  const totalSize = visible.reduce((s, f) => s + (f.size || 0), 0);
+  elements.snapshotStats.textContent = `${fileCount} arquivo(s) — ${formatBytes(totalSize)}`;
+
+  if (!visible.length) {
+    elements.snapshotFileList.innerHTML = '<div class="snapshot-empty">Nenhum arquivo encontrado.</div>';
+    updateSnapshotExtractBtn();
+    return;
+  }
+
+  // Group by directory
+  const groups = new Map();
+  for (const file of visible) {
+    const slash = file.name.lastIndexOf('/');
+    const dir = slash >= 0 ? file.name.slice(0, slash) : '';
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(file);
+  }
+
+  const sortedGroups = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+  const folderIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="flex-shrink:0"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const rootIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="flex-shrink:0"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+
+  elements.snapshotFileList.innerHTML = sortedGroups.map(([dir, dirFiles]) => {
+    const header = dir
+      ? `<div class="snapshot-dir-header">${folderIcon}<span>${escapeHtml(dir)}/</span></div>`
+      : `<div class="snapshot-dir-header">${rootIcon}<span>(raiz)</span></div>`;
+
+    const rows = dirFiles.map((file) => {
+      const shortName = dir ? file.name.slice(dir.length + 1) : file.name;
+      return `<label class="snapshot-file-item">
+        <input type="checkbox" name="snapshotFile" value="${escapeHtml(file.name)}" />
+        <span class="snapshot-file-name" title="${escapeHtml(file.name)}">${escapeHtml(shortName)}</span>
+        <span class="snapshot-file-size">${formatBytes(file.size || 0)}</span>
+        <span class="snapshot-file-mtime">${escapeHtml(file.mtime || '')}</span>
+      </label>`;
+    }).join('');
+
+    return `<div class="snapshot-dir-group">${header}${rows}</div>`;
+  }).join('');
+
+  elements.snapshotFileList.querySelectorAll('input[name="snapshotFile"]').forEach((cb) => {
+    cb.addEventListener('change', updateSnapshotExtractBtn);
+  });
+  updateSnapshotExtractBtn();
+}
+
+function updateSnapshotExtractBtn() {
+  const checked = elements.snapshotFileList.querySelectorAll('input[name="snapshotFile"]:checked').length;
+  elements.snapshotExtract.disabled = checked === 0;
+  elements.snapshotExtract.textContent = checked > 0 ? `Extrair ${checked} arquivo(s)` : 'Extrair selecionados';
+}
+
+function closeSnapshotModal() {
+  elements.snapshotModal.classList.add('hidden');
+  elements.snapshotModal.setAttribute('aria-hidden', 'true');
+}
+
+elements.snapshotModalClose?.addEventListener('click', closeSnapshotModal);
+elements.snapshotModal?.querySelector('[data-action="close-snapshot-modal"]')?.addEventListener('click', closeSnapshotModal);
+
+elements.snapshotSearch?.addEventListener('input', () => {
+  const data = snapshotState.filesByContainer[snapshotState.activeContainerId];
+  if (data) renderSnapshotFiles(data.files, elements.snapshotSearch.value);
+});
+
+elements.snapshotSelectAll?.addEventListener('click', () => {
+  const checkboxes = elements.snapshotFileList.querySelectorAll('input[name="snapshotFile"]:not(:disabled)');
+  const allChecked = [...checkboxes].every((c) => c.checked);
+  checkboxes.forEach((c) => { c.checked = !allChecked; });
+  updateSnapshotExtractBtn();
+});
+
+elements.snapshotExtract?.addEventListener('click', async () => {
+  const checked = [...elements.snapshotFileList.querySelectorAll('input[name="snapshotFile"]:checked')].map((c) => c.value);
+  if (!checked.length) return;
+
+  const containerId = snapshotState.activeContainerId;
+  const backupId = snapshotState.backup.id;
+
+  elements.snapshotExtract.disabled = true;
+  elements.snapshotExtract.textContent = 'Preparando...';
+
+  try {
+    const token = localStorage.getItem('authToken');
+    const resp = await fetch(
+      `/api/backups/${encodeURIComponent(backupId)}/containers/${encodeURIComponent(containerId)}/extract`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-auth-token': token } : {}),
+        },
+        body: JSON.stringify({ paths: checked }),
+      },
+    );
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Erro ao extrair arquivos.' }));
+      throw new Error(err.error || 'Erro ao extrair arquivos.');
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const fnMatch = cd.match(/filename="?([^"]+)"?/);
+    a.download = fnMatch ? fnMatch[1] : 'extract.tar.gz';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`${checked.length} arquivo(s) extraído(s) com sucesso.`);
+  } catch (error) {
+    showToast(`Erro ao extrair: ${error.message}`, true);
+  } finally {
+    updateSnapshotExtractBtn();
+  }
+});
+
 async function renderBackupsView() {
   const host = document.querySelector('#backupsViewList');
   if (!host) return;
@@ -835,6 +1060,13 @@ function renderBackupRow(b, profile, isFull) {
       <td><span class="status-badge status-badge--${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
       <td>${escapeHtml((b.containers || []).map((c) => c.containerName).join(', '))}</td>
       <td>
+        <button
+          class="btn btn--secondary btn--sm btn--icon"
+          data-action="browse-backup"
+          data-profile-id="${escapeHtml(profile.id)}"
+          data-backup-id="${escapeHtml(b.id)}"
+          title="Ver arquivos do backup"
+        ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button>
         <button
           class="btn btn--secondary btn--sm"
           data-action="restore"
@@ -1719,6 +1951,11 @@ async function handleProfileAction(event) {
           );
         }
       }
+      return;
+    }
+
+    if (action === 'browse-backup') {
+      openSnapshotModal(backupId, profileId);
       return;
     }
 

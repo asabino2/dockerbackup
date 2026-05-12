@@ -398,6 +398,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal: Snapshot/browse de arquivos do backup -->
+    <div id="snapshotModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-snapshot-modal"></div>
+      <div class="modal-card modal-card--wide modal-card--snapshot" role="dialog" aria-modal="true" aria-labelledby="snapshotModalTitle">
+        <div class="modal-header">
+          <div>
+            <h3 id="snapshotModalTitle">Snapshot do Backup</h3>
+            <p id="snapshotModalSubtitle" class="modal-subtitle"></p>
+          </div>
+          <button id="snapshotModalClose" class="btn btn--ghost btn--sm" type="button">Fechar</button>
+        </div>
+        <div id="snapshotContainerTabs" class="snapshot-tabs hidden"></div>
+        <div class="snapshot-toolbar">
+          <input id="snapshotSearch" type="search" class="snapshot-search" placeholder="Filtrar arquivos..." />
+          <span id="snapshotStats" class="snapshot-stats"></span>
+        </div>
+        <div id="snapshotLoading" class="snapshot-loading hidden">
+          <span class="spinner-inline"></span> Carregando arquivos do archive...
+        </div>
+        <div id="snapshotFileList" class="snapshot-file-list"></div>
+        <div class="modal-actions">
+          <button id="snapshotSelectAll" class="btn btn--secondary" type="button">Selecionar todos</button>
+          <button id="snapshotExtract" class="btn btn--primary" type="button" disabled>Extrair selecionados</button>
+        </div>
+      </div>
+    </div>
+
     <div id="profileFormModal" class="modal hidden" aria-hidden="true">
       <div class="modal-backdrop" data-action="close-profile-modal"></div>
       <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">

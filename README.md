@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.2.2-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.2.5-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,22 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.2.2**
+Versão atual: **0.2.5**
 
 ---
 
 ## 📋 Changelog
+
+### [0.2.5] — 2026-05-12
+
+#### Adicionado
+- **Visualizador de snapshot de backup:** botão de ícone em cada linha de backup abre um modal com a lista completa de arquivos do archive, refletindo o estado final após restore (incluindo cadeia full + incrementais).
+- **Extração seletiva de arquivos:** dentro do modal de snapshot é possível selecionar um ou mais arquivos individualmente (ou todos de uma vez) e baixá-los como `.tar.gz`.
+- **Busca de arquivos no snapshot:** campo de filtro em tempo real para localizar arquivos pelo nome dentro do modal.
+- **Abas por container:** quando um backup contém múltiplos containers, o modal exibe abas para navegar entre eles.
+- **Suporte à cadeia incremental:** a listagem de arquivos mescla automaticamente full + incrementais, garantindo que a visão do snapshot corresponda ao estado real restaurado.
+
+---
 
 ### [0.2.2] — 2026-05-12
 

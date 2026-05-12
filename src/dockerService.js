@@ -122,6 +122,8 @@ class DockerService {
         image: container.Image,
         state: container.State,
         status: container.Status,
+        composeProject: (container.Labels || {})['com.docker.compose.project'] || null,
+        composeService: (container.Labels || {})['com.docker.compose.service'] || null,
       }))
       .sort((left, right) => left.name.localeCompare(right.name));
   }

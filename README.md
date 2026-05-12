@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.2.1-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.2.2-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,19 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.2.1**
+Versão atual: **0.2.2**
 
 ---
 
 ## 📋 Changelog
+
+### [0.2.2] — 2026-05-12
+
+#### Corrigido
+- **Volumes de container remoto:** ao clicar em um container para selecionar volumes no modal de criação de perfil, a busca de mounts agora utiliza a conexão correta (TCP remoto) quando a origem selecionada é uma conexão Docker remota (porta 2375), corrigindo o erro `ENOENT /var/run/docker.sock` que ocorria ao usar origens remotas.
+- **Agrupamento por Docker Compose na lista de containers:** containers do modal de criação de profile agora são agrupados visualmente por projeto Compose, com cabeçalho identificando o stack. Containers sem Compose aparecem em grupo separado "Containers avulsos".
+
+---
 
 ### [0.2.1] — 2026-05-12
 

@@ -1048,6 +1048,20 @@ function isMountBlocked(destination) {
   );
 }
 
+function renderContainerOption(container, selected) {
+  const hasVolumeSelection = Boolean(state.volumeSelections[container.id]?.length);
+  return `
+    <label class="container-option">
+      <input type="checkbox" name="containerIds" value="${escapeHtml(container.id)}" ${selected.has(container.id) ? 'checked' : ''} />
+      <span>
+        <strong>${escapeHtml(container.name)}</strong>
+        <small>${escapeHtml(container.image)} · ${escapeHtml(container.status)}${hasVolumeSelection ? ` · ${state.volumeSelections[container.id].length} volume(s) selecionado(s)` : ''}</small>
+      </span>
+      <em class="state ${escapeHtml(container.state)}">${escapeHtml(container.state)}</em>
+    </label>
+  `;
+}
+
 function renderContainers() {
   elements.containerCount.textContent = String(state.containers.length);
 
@@ -1059,19 +1073,48 @@ function renderContainers() {
   }
 
   const selected = new Set(getSelectedContainerIds());
-  elements.containerOptions.innerHTML = eligible.map((container) => {
-    const hasVolumeSelection = Boolean(state.volumeSelections[container.id]?.length);
-    return `
-    <label class="container-option">
-      <input type="checkbox" name="containerIds" value="${escapeHtml(container.id)}" ${selected.has(container.id) ? 'checked' : ''} />
-      <span>
-        <strong>${escapeHtml(container.name)}</strong>
-        <small>${escapeHtml(container.image)} · ${escapeHtml(container.status)}${hasVolumeSelection ? ` · ${state.volumeSelections[container.id].length} volume(s) selecionado(s)` : ''}</small>
-      </span>
-      <em class="state ${escapeHtml(container.state)}">${escapeHtml(container.state)}</em>
-    </label>
-  `;
-  }).join('');
+
+  // Separate compose containers from standalone
+  const composeGroups = new Map(); // project -> container[]
+  const standalone = [];
+
+  for (const container of eligible) {
+    if (container.composeProject) {
+      if (!composeGroups.has(container.composeProject)) composeGroups.set(container.composeProject, []);
+      composeGroups.get(container.composeProject).push(container);
+    } else {
+      standalone.push(container);
+    }
+  }
+
+  const parts = [];
+
+  // Compose groups first, sorted by project name
+  for (const [project, containers] of [...composeGroups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    parts.push(`<div class="compose-group">
+      <div class="compose-group-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span>${escapeHtml(project)}</span>
+      </div>
+      ${containers.map((c) => renderContainerOption(c, selected)).join('')}
+    </div>`);
+  }
+
+  // Standalone containers
+  if (standalone.length) {
+    const standaloneHeader = composeGroups.size > 0
+      ? `<div class="compose-group">
+        <div class="compose-group-header compose-group-header--standalone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          <span>Containers avulsos</span>
+        </div>
+        ${standalone.map((c) => renderContainerOption(c, selected)).join('')}
+      </div>`
+      : standalone.map((c) => renderContainerOption(c, selected)).join('');
+    parts.push(standaloneHeader);
+  }
+
+  elements.containerOptions.innerHTML = parts.join('');
 }
 
 function backupButtons(profile) {
@@ -1104,10 +1147,13 @@ function getProfileScopeLabel(scope) {
   return scope === 'container' ? 'container inteiro' : 'somente volumes';
 }
 
-async function askVolumeSelection(containerId, containerName, currentSelections) {
+async function askVolumeSelection(containerId, containerName, currentSelections, sourceId) {
   let mounts;
   try {
-    mounts = await api(`/api/containers/${encodeURIComponent(containerId)}/mounts`);
+    const mountsUrl = sourceId
+      ? `/api/containers/${encodeURIComponent(containerId)}/mounts?sourceId=${encodeURIComponent(sourceId)}`
+      : `/api/containers/${encodeURIComponent(containerId)}/mounts`;
+    mounts = await api(mountsUrl);
   } catch (error) {
     showToast(`Falha ao buscar volumes de ${containerName}: ${error.message}`, true);
     return null;
@@ -1224,7 +1270,8 @@ async function handleContainerCheck(event) {
   }
 
   const currentSelections = state.volumeSelections[containerId] || null;
-  const selected = await askVolumeSelection(containerId, containerName, currentSelections);
+  const sourceId = elements.profileSourceSelect?.value || null;
+  const selected = await askVolumeSelection(containerId, containerName, currentSelections, sourceId);
 
   if (selected === null) {
     input.checked = false;

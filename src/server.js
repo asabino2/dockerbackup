@@ -223,7 +223,12 @@ async function main() {
 
   app.get('/api/containers/:containerId/mounts', authMiddleware, async (request, response) => {
     try {
-      const inspect = await dockerService.inspectContainer(request.params.containerId);
+      let ds = dockerService;
+      if (request.query.sourceId) {
+        const source = await store.getSource(String(request.query.sourceId));
+        if (source) ds = createDockerServiceForSource(source);
+      }
+      const inspect = await ds.inspectContainer(request.params.containerId);
       const mounts = (inspect.Mounts || [])
         .filter((m) => m.Type === 'bind' || m.Type === 'volume')
         .map((m) => ({

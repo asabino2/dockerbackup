@@ -639,6 +639,29 @@ button, input, select {
   padding: 6px;
 }
 
+.compose-group {
+  display: grid;
+  gap: 4px;
+}
+
+.compose-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent, #4a6cf7);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.compose-group-header--standalone {
+  color: var(--text-muted);
+}
+
 .container-option {
   display: grid;
   grid-template-columns: auto 1fr auto;

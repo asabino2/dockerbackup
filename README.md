@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-0.2.0-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/VERSION-0.2.1-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/NODE.JS-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/DOCKER-ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/READY-yes-brightgreen?style=flat-square" />
@@ -18,11 +18,23 @@
 
 > ⚠️ **AVISO CRÍTICO:** Aplicação em estágio inicial de desenvolvimento. Não use em produção — há risco de perda de dados.
 
-Versão atual: **0.1.4**
+Versão atual: **0.2.1**
 
 ---
 
-## � Changelog### [0.2.0] — 2026-05-11
+## 📋 Changelog
+
+### [0.2.1] — 2026-05-12
+
+#### Adicionado
+- **Novos tipos de Storage Location:** além do armazenamento local, agora é possível cadastrar destinos remotos: **FTP**, **SFTP**, **WebDAV** e **Google Drive**.
+- **Campos dinâmicos por tipo de storage:** o modal de criação/edição de Storage Location exibe apenas os campos relevantes ao tipo selecionado (host, porta, usuário, senha, caminho remoto, modo passivo, chave privada SSH, URL WebDAV, credenciais OAuth Google Drive).
+- **Badge de tipo na listagem:** cada Storage Location exibe um badge colorido com seu tipo (Local, FTP, SFTP, WebDAV, Google Drive) e o endereço de destino na tabela.
+- **Dropdown de profile atualizado:** o seletor de Storage Location nos Backup Profiles passa a exibir o tipo de cada location junto ao nome.
+
+---
+
+### [0.2.0] — 2026-05-11
 
 #### Adicionado
 - **Aba Source (Origens):** nova aba acima de Storage Locations para gerenciar origens de conexão Docker, com suporte a Unix socket, conexão direta (TCP porta 2375) e Docker Agent

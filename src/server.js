@@ -265,6 +265,10 @@ async function main() {
           return;
         }
         resolvedBackupDir = loc.directory;
+        if (!resolvedBackupDir && loc.type && loc.type !== 'local') {
+          response.status(400).json({ error: 'O tipo de armazenamento selecionado (remoto) ainda não suporta execução de backup. Utilize um local do tipo "Local".' });
+          return;
+        }
       }
 
       if (!resolvedBackupDir) {
@@ -552,14 +556,55 @@ async function main() {
   app.post('/api/storage-locations', authMiddleware, async (request, response) => {
     try {
       const payload = request.body || {};
-      if (!payload.name || !payload.directory) {
-        response.status(400).json({ error: 'Informe nome e diretorio do local de armazenamento.' });
+      if (!payload.name) {
+        response.status(400).json({ error: 'Informe o nome do local de armazenamento.' });
         return;
       }
+
+      const type = payload.type || 'local';
+      const validTypes = ['local', 'ftp', 'sftp', 'webdav', 'google-drive'];
+      if (!validTypes.includes(type)) {
+        response.status(400).json({ error: 'Tipo de armazenamento inválido.' });
+        return;
+      }
+
+      if (type === 'local' && !payload.directory) {
+        response.status(400).json({ error: 'Informe o diretório para armazenamento local.' });
+        return;
+      }
+      if ((type === 'ftp' || type === 'sftp') && (!payload.host || !payload.username)) {
+        response.status(400).json({ error: 'Informe host e usuário para FTP/SFTP.' });
+        return;
+      }
+      if (type === 'webdav' && !payload.url) {
+        response.status(400).json({ error: 'Informe a URL do servidor WebDAV.' });
+        return;
+      }
+      if (type === 'google-drive' && (!payload.clientId || !payload.clientSecret || !payload.refreshToken)) {
+        response.status(400).json({ error: 'Informe Client ID, Client Secret e Refresh Token para Google Drive.' });
+        return;
+      }
+
+      const existing = payload.id ? await store.listStorageLocations().then((l) => l.find((x) => x.id === payload.id)) : null;
+
       const location = await store.saveStorageLocation({
         id: payload.id,
         name: payload.name.trim(),
-        directory: payload.directory.trim(),
+        createdAt: existing?.createdAt,
+        type,
+        directory: payload.directory?.trim() || null,
+        host: payload.host?.trim() || null,
+        port: payload.port ? Number(payload.port) : null,
+        username: payload.username?.trim() || null,
+        password: payload.password || null,
+        remotePath: payload.remotePath?.trim() || null,
+        passive: payload.passive !== undefined ? Boolean(payload.passive) : null,
+        privateKey: payload.privateKey || null,
+        url: payload.url?.trim() || null,
+        clientId: payload.clientId?.trim() || null,
+        clientSecret: payload.clientSecret || null,
+        refreshToken: payload.refreshToken || null,
+        folderId: payload.folderId?.trim() || null,
       });
       response.status(payload.id ? 200 : 201).json(location);
     } catch (error) {

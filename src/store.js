@@ -152,7 +152,26 @@ class JsonStore {
     const location = {
       id: input.id || randomUUID(),
       name: input.name,
-      directory: input.directory,
+      type: input.type || 'local',
+      // local
+      directory: input.directory || null,
+      // ftp / sftp
+      host: input.host || null,
+      port: input.port != null ? Number(input.port) : null,
+      username: input.username || null,
+      password: input.password || null,
+      remotePath: input.remotePath || null,
+      // ftp only
+      passive: input.passive != null ? Boolean(input.passive) : null,
+      // sftp only
+      privateKey: input.privateKey || null,
+      // webdav
+      url: input.url || null,
+      // google-drive
+      clientId: input.clientId || null,
+      clientSecret: input.clientSecret || null,
+      refreshToken: input.refreshToken || null,
+      folderId: input.folderId || null,
       updatedAt: now,
       createdAt: input.createdAt || now,
     };

@@ -95,6 +95,22 @@ const elements = {
   storageLocationDir: document.querySelector('#storageLocationDir'),
   storageLocationIdField: document.querySelector('#storageFormId'),
   storageLocationsList: document.querySelector('#storageLocationsList'),
+  // storage type fields
+  storageHost: document.querySelector('#storageHost'),
+  storagePort: document.querySelector('#storagePort'),
+  storageUsername: document.querySelector('#storageUsername'),
+  storagePassword: document.querySelector('#storagePassword'),
+  storageRemotePath: document.querySelector('#storageRemotePath'),
+  storagePassive: document.querySelector('#storagePassive'),
+  storagePrivateKey: document.querySelector('#storagePrivateKey'),
+  storageWebdavUrl: document.querySelector('#storageWebdavUrl'),
+  storageWebdavUsername: document.querySelector('#storageWebdavUsername'),
+  storageWebdavPassword: document.querySelector('#storageWebdavPassword'),
+  storageWebdavRemotePath: document.querySelector('#storageWebdavRemotePath'),
+  storageGdriveClientId: document.querySelector('#storageGdriveClientId'),
+  storageGdriveClientSecret: document.querySelector('#storageGdriveClientSecret'),
+  storageGdriveRefreshToken: document.querySelector('#storageGdriveRefreshToken'),
+  storageGdriveFolderId: document.querySelector('#storageGdriveFolderId'),
   sourceFormModal: document.querySelector('#sourceFormModal'),
   sourceForm: document.querySelector('#sourceForm'),
   sourceFormId: document.querySelector('#sourceFormId'),
@@ -196,14 +212,39 @@ function renderStorageLocationsList() {
     return;
   }
 
+  const STORAGE_TYPE_LABELS = {
+    'local': 'Local',
+    'ftp': 'FTP',
+    'sftp': 'SFTP',
+    'webdav': 'WebDAV',
+    'google-drive': 'Google Drive',
+  };
+
+  function storageLocationSummary(loc) {
+    const type = loc.type || 'local';
+    if (type === 'local') return `<code>${escapeHtml(loc.directory || '')}</code>`;
+    if (type === 'ftp' || type === 'sftp') {
+      const host = loc.host ? escapeHtml(loc.host) : '—';
+      const port = loc.port ? `:${loc.port}` : '';
+      const path = loc.remotePath ? escapeHtml(loc.remotePath) : '';
+      return `<code>${host}${port}${path ? '/' + path.replace(/^\//, '') : ''}</code>`;
+    }
+    if (type === 'webdav') return `<code>${escapeHtml(loc.url || '')}</code>`;
+    if (type === 'google-drive') {
+      return loc.folderId ? `<code>folder: ${escapeHtml(loc.folderId)}</code>` : '<code>Drive raiz</code>';
+    }
+    return '';
+  }
+
   list.innerHTML = `
     <table class="data-table">
-      <thead><tr><th>Nome</th><th>Diretório</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nome</th><th>Tipo</th><th>Destino</th><th>Ações</th></tr></thead>
       <tbody>
         ${state.storageLocations.map((loc) => `
           <tr>
             <td><strong>${escapeHtml(loc.name)}</strong></td>
-            <td><code>${escapeHtml(loc.directory)}</code></td>
+            <td><span class="storage-type-badge">${escapeHtml(STORAGE_TYPE_LABELS[loc.type || 'local'] || loc.type || 'local')}</span></td>
+            <td>${storageLocationSummary(loc)}</td>
             <td>
               <button class="btn btn--ghost btn--sm" data-storage-action="delete" data-storage-id="${escapeHtml(loc.id)}">Excluir</button>
             </td>
@@ -218,17 +259,63 @@ function populateStorageLocationDropdown() {
   const select = elements.storageLocationSelect;
   if (!select) return;
   const current = select.value;
+  const STORAGE_TYPE_LABELS = { 'local': 'Local', 'ftp': 'FTP', 'sftp': 'SFTP', 'webdav': 'WebDAV', 'google-drive': 'Google Drive' };
   select.innerHTML = '<option value="">Selecione um local...</option>' +
-    state.storageLocations.map((loc) =>
-      `<option value="${escapeHtml(loc.id)}">${escapeHtml(loc.name)} — ${escapeHtml(loc.directory)}</option>`
-    ).join('');
+    state.storageLocations.map((loc) => {
+      const typeLabel = STORAGE_TYPE_LABELS[loc.type || 'local'] || loc.type || 'local';
+      const detail = (loc.type === 'local' || !loc.type) ? (loc.directory || '') :
+        (loc.host || loc.url || loc.clientId || '');
+      return `<option value="${escapeHtml(loc.id)}">[${escapeHtml(typeLabel)}] ${escapeHtml(loc.name)}${detail ? ' — ' + escapeHtml(detail) : ''}</option>`;
+    }).join('');
   if (current) select.value = current;
+}
+
+function updateStorageTypeFields(type) {
+  const sections = {
+    local: document.querySelector('#storageFieldsLocal'),
+    ftpSftp: document.querySelector('#storageFieldsFtpSftp'),
+    ftpOnly: document.querySelector('#storageFieldsFtpOnly'),
+    sftpOnly: document.querySelector('#storageFieldsSftpOnly'),
+    webdav: document.querySelector('#storageFieldsWebdav'),
+    gdrive: document.querySelector('#storageFieldsGdrive'),
+  };
+
+  const show = (el) => el?.classList.remove('hidden');
+  const hide = (el) => el?.classList.add('hidden');
+
+  hide(sections.local);
+  hide(sections.ftpSftp);
+  hide(sections.ftpOnly);
+  hide(sections.sftpOnly);
+  hide(sections.webdav);
+  hide(sections.gdrive);
+
+  if (type === 'local') {
+    show(sections.local);
+    // Update port placeholder when switching to local doesn't apply
+  } else if (type === 'ftp') {
+    show(sections.ftpSftp);
+    show(sections.ftpOnly);
+    if (elements.storagePort && !elements.storagePort.value) elements.storagePort.placeholder = '21';
+  } else if (type === 'sftp') {
+    show(sections.ftpSftp);
+    show(sections.sftpOnly);
+    if (elements.storagePort && !elements.storagePort.value) elements.storagePort.placeholder = '22';
+  } else if (type === 'webdav') {
+    show(sections.webdav);
+  } else if (type === 'google-drive') {
+    show(sections.gdrive);
+  }
 }
 
 function openStorageModal() {
   document.querySelector('#storageModalTitle').textContent = 'Novo Local de Armazenamento';
   elements.storageLocationForm.reset();
   elements.storageLocationIdField.value = '';
+  // Reset to local type
+  const localRadio = elements.storageLocationForm.querySelector('input[name="storageType"][value="local"]');
+  if (localRadio) localRadio.checked = true;
+  updateStorageTypeFields('local');
   elements.storageLocationFormModal.classList.remove('hidden');
   elements.storageLocationFormModal.setAttribute('aria-hidden', 'false');
 }
@@ -240,11 +327,57 @@ function closeStorageModal() {
 
 async function saveStorageLocation(event) {
   event.preventDefault();
+
+  const form = elements.storageLocationForm;
+  const selectedTypeInput = form.querySelector('input[name="storageType"]:checked');
+  const type = selectedTypeInput ? selectedTypeInput.value : 'local';
+
   const payload = {
     id: elements.storageLocationIdField.value || undefined,
     name: elements.storageLocationName.value.trim(),
-    directory: elements.storageLocationDir.value.trim(),
+    type,
   };
+
+  if (type === 'local') {
+    payload.directory = elements.storageLocationDir.value.trim();
+    if (!payload.directory) {
+      showToast('Informe o diretório para armazenamento local.', true);
+      return;
+    }
+  } else if (type === 'ftp' || type === 'sftp') {
+    payload.host = elements.storageHost.value.trim();
+    payload.port = elements.storagePort.value ? Number(elements.storagePort.value) : (type === 'ftp' ? 21 : 22);
+    payload.username = elements.storageUsername.value.trim();
+    payload.password = elements.storagePassword.value;
+    payload.remotePath = elements.storageRemotePath.value.trim();
+    if (!payload.host || !payload.username) {
+      showToast('Informe host e usuário para ' + type.toUpperCase() + '.', true);
+      return;
+    }
+    if (type === 'ftp') {
+      payload.passive = elements.storagePassive.checked;
+    } else {
+      payload.privateKey = elements.storagePrivateKey.value;
+    }
+  } else if (type === 'webdav') {
+    payload.url = elements.storageWebdavUrl.value.trim();
+    payload.username = elements.storageWebdavUsername.value.trim();
+    payload.password = elements.storageWebdavPassword.value;
+    payload.remotePath = elements.storageWebdavRemotePath.value.trim();
+    if (!payload.url) {
+      showToast('Informe a URL do servidor WebDAV.', true);
+      return;
+    }
+  } else if (type === 'google-drive') {
+    payload.clientId = elements.storageGdriveClientId.value.trim();
+    payload.clientSecret = elements.storageGdriveClientSecret.value;
+    payload.refreshToken = elements.storageGdriveRefreshToken.value;
+    payload.folderId = elements.storageGdriveFolderId.value.trim();
+    if (!payload.clientId || !payload.clientSecret || !payload.refreshToken) {
+      showToast('Informe Client ID, Client Secret e Refresh Token para Google Drive.', true);
+      return;
+    }
+  }
 
   try {
     await api('/api/storage-locations', {
@@ -264,6 +397,9 @@ document.querySelector('#cancelStorageForm')?.addEventListener('click', closeSto
 document.querySelector('#storageModalClose')?.addEventListener('click', closeStorageModal);
 elements.storageLocationFormModal?.addEventListener('click', (e) => {
   if (e.target.closest('[data-action="close-storage-modal"]')) closeStorageModal();
+});
+elements.storageLocationFormModal?.addEventListener('change', (e) => {
+  if (e.target.name === 'storageType') updateStorageTypeFields(e.target.value);
 });
 elements.storageLocationForm?.addEventListener('submit', saveStorageLocation);
 elements.storageLocationsList?.addEventListener('click', async (e) => {

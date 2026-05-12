@@ -538,26 +538,152 @@
     <!-- Modal: Criar/Editar Storage Location -->
     <div id="storageLocationFormModal" class="modal hidden" aria-hidden="true">
       <div class="modal-backdrop" data-action="close-storage-modal"></div>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="storageModalTitle">
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="storageModalTitle">
         <div class="modal-header">
           <h3 id="storageModalTitle">Novo Local de Armazenamento</h3>
           <button id="storageModalClose" class="btn btn--ghost btn--sm" type="button" data-action="close-storage-modal">Fechar</button>
         </div>
         <form id="storageLocationForm" class="profile-form">
           <input type="hidden" id="storageFormId" />
+
           <div class="form-field">
             <label for="storageLocationName">Nome</label>
             <input id="storageLocationName" type="text" placeholder="Backup principal" required />
           </div>
-          <div class="form-field">
-            <label for="storageLocationDir">Diretório</label>
-            <div class="dir-input-group">
-              <input id="storageLocationDir" type="text" placeholder="/srv/docker-backups" required />
-              <button type="button" id="browseDirBtn" class="btn btn--secondary btn--sm dir-browse-btn" title="Procurar diretório">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              </button>
+
+          <!-- Tipo de storage -->
+          <fieldset class="form-fieldset">
+            <legend>Tipo de storage</legend>
+            <div class="radio-grid">
+              <label class="radio-card">
+                <input type="radio" name="storageType" value="local" checked />
+                <span>Local</span>
+                <small>Diretório no servidor</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="storageType" value="ftp" />
+                <span>FTP</span>
+                <small>File Transfer Protocol</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="storageType" value="sftp" />
+                <span>SFTP</span>
+                <small>SSH File Transfer</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="storageType" value="webdav" />
+                <span>WebDAV</span>
+                <small>Web Distributed Authoring</small>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="storageType" value="google-drive" />
+                <span>Google Drive</span>
+                <small>Google Drive API v3</small>
+              </label>
+            </div>
+          </fieldset>
+
+          <!-- Local: diretório -->
+          <div id="storageFieldsLocal">
+            <div class="form-field">
+              <label for="storageLocationDir">Diretório</label>
+              <div class="dir-input-group">
+                <input id="storageLocationDir" type="text" placeholder="/srv/docker-backups" />
+                <button type="button" id="browseDirBtn" class="btn btn--secondary btn--sm dir-browse-btn" title="Procurar diretório">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </button>
+              </div>
             </div>
           </div>
+
+          <!-- FTP / SFTP: campos comuns -->
+          <div id="storageFieldsFtpSftp" class="hidden">
+            <div class="form-row-2col">
+              <div class="form-field">
+                <label for="storageHost">Host</label>
+                <input id="storageHost" type="text" placeholder="ftp.exemplo.com" autocomplete="off" />
+              </div>
+              <div class="form-field form-field--port">
+                <label for="storagePort">Porta</label>
+                <input id="storagePort" type="number" min="1" max="65535" placeholder="21" />
+              </div>
+            </div>
+            <div class="form-row-2col" style="grid-template-columns:1fr 1fr">
+              <div class="form-field">
+                <label for="storageUsername">Usuário</label>
+                <input id="storageUsername" type="text" autocomplete="off" />
+              </div>
+              <div class="form-field">
+                <label for="storagePassword">Senha</label>
+                <input id="storagePassword" type="password" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="storageRemotePath">Caminho remoto</label>
+              <input id="storageRemotePath" type="text" placeholder="/backups" />
+            </div>
+          </div>
+
+          <!-- FTP apenas: modo passivo -->
+          <div id="storageFieldsFtpOnly" class="hidden">
+            <div class="form-field">
+              <label class="checkbox-row">
+                <input type="checkbox" id="storagePassive" />
+                <span>Modo passivo (PASV)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- SFTP apenas: chave privada -->
+          <div id="storageFieldsSftpOnly" class="hidden">
+            <div class="form-field">
+              <label for="storagePrivateKey">Chave privada SSH <small>(opcional — alternativa à senha)</small></label>
+              <textarea id="storagePrivateKey" rows="5" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+            </div>
+          </div>
+
+          <!-- WebDAV -->
+          <div id="storageFieldsWebdav" class="hidden">
+            <div class="form-field">
+              <label for="storageWebdavUrl">URL do servidor WebDAV</label>
+              <input id="storageWebdavUrl" type="url" placeholder="https://cloud.exemplo.com/remote.php/webdav" />
+            </div>
+            <div class="form-row-2col" style="grid-template-columns:1fr 1fr">
+              <div class="form-field">
+                <label for="storageWebdavUsername">Usuário</label>
+                <input id="storageWebdavUsername" type="text" autocomplete="off" />
+              </div>
+              <div class="form-field">
+                <label for="storageWebdavPassword">Senha</label>
+                <input id="storageWebdavPassword" type="password" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="storageWebdavRemotePath">Caminho remoto <small>(opcional)</small></label>
+              <input id="storageWebdavRemotePath" type="text" placeholder="/Backups/Docker" />
+            </div>
+          </div>
+
+          <!-- Google Drive -->
+          <div id="storageFieldsGdrive" class="hidden">
+            <div class="form-field">
+              <label for="storageGdriveClientId">Client ID</label>
+              <input id="storageGdriveClientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com" />
+            </div>
+            <div class="form-field">
+              <label for="storageGdriveClientSecret">Client Secret</label>
+              <input id="storageGdriveClientSecret" type="password" autocomplete="new-password" />
+            </div>
+            <div class="form-field">
+              <label for="storageGdriveRefreshToken">Refresh Token</label>
+              <input id="storageGdriveRefreshToken" type="password" autocomplete="new-password" />
+            </div>
+            <div class="form-field">
+              <label for="storageGdriveFolderId">ID da pasta de destino <small>(opcional)</small></label>
+              <input id="storageGdriveFolderId" type="text" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+            </div>
+          </div>
+
           <div class="form-actions">
             <button class="btn btn--primary" type="submit">Salvar</button>
             <button class="btn btn--secondary" type="button" id="cancelStorageForm">Cancelar</button>
